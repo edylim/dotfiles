@@ -90,7 +90,7 @@ xcode-select --install
 ```bash
 brew install git
 git config --global user.name <user_name>
-git config --global user.email <email>
+git config --global user.email <user_name>@users.noreply.github.com
 git config --global push.default simple
 ```
 
@@ -116,8 +116,8 @@ git config --global github.oauth-token <token>
 ## Dotfile Setup<a id="sec-2-5"></a>
 
 ```bash
-export DOTFILE_DIR=~/dev/dotfiles
-git clone https://github.com/natsumi/dotfiles $DOTFILE_DIR
+export DOTFILE_DIR=~/projects/dotfiles
+git clone https://github.com/edylim/dotfiles $DOTFILE_DIR
 ```
 
 ## ZSH Setup<a id="sec-2-6"></a>
@@ -140,7 +140,6 @@ git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$H
 ### Setup Symlinks<a id="sec-2-6-3"></a>
 
 ```bash
-export DOTFILE_DIR=~/dev/dotfiles
 ln -s $DOTFILE_DIR/zsh/zshrc.symlink ~/.zshrc
 ln -s $DOTFILE_DIR/zsh/zshenv.symlink ~/.zshenv
 ln -s $DOTFILE_DIR/zsh/zpreztorc.symlink ~/.zpreztorc
@@ -183,12 +182,13 @@ gem install rufo ruby-lint rubocop scss_lint scss_lint_reporter_checkstyle
 
 ### Restart your terminal here<a id="sec-2-7-4"></a>
 
-## Poewrline Fonts<a id="sec-2-8"></a>
+## Pwoerline Fonts<a id="sec-2-8"></a>
 
 [Powerline Fonts Repo](https://github.com/powerline/fonts)
 
 ## Brew Bundle<a id="sec-2-9"></a>
 
+Skip this next command if you want the rest of your setup to be annoying
 ```shell
 brew bundle
 ```
