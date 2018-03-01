@@ -5,6 +5,8 @@ alias ln="ln -v"
 alias mkdir="mkdir -p"
 alias e="$EDITOR"
 alias v="$VISUAL"
+alias auxp="lsof -i"
+alias aux="ps aux | grep"
 
 # Emacs
 alias e="emacsclient -t -a ''"
@@ -28,6 +30,10 @@ alias rc="rails c"
 alias rs="rails s"
 alias migrate="rake db:migrate db:rollback && rake db:migrate"
 alias s="rspec"
+
+# Edmunds Yarn
+alias yrd="yarn run dev"
+alias cdv="cd ~/projects/node-site-venom"
 
 # Pretty print the PATH env
 alias path='echo $PATH | tr -s ":" "\n"'
