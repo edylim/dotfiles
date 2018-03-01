@@ -7,6 +7,7 @@ alias e="$EDITOR"
 alias v="$VISUAL"
 alias auxp="lsof -i"
 alias aux="ps aux | grep"
+alias kill="kill -9"
 
 # Emacs
 alias e="emacsclient -t -a ''"
