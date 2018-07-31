@@ -330,7 +330,7 @@ you should place your code here."
   (setq org-log-done (quote time))
 
   )
-
+  (setq tramp-ssh-controlmaster-options "-o ControlMaster=auto -o ControlPath='tramp.%%C' -o ControlPersist=no")
 
 ;; Do not write anything past this comment. This is where Emacs will
 ;; auto-generate custom variable definitions.

@@ -7,6 +7,9 @@ fi
 # THEME SETTINGS
 ################
 
+# yarn path
+export PATH=$HOME/.yarn/bin:$PATH
+
 # makes color constants available
 autoload -U colors
 colors
@@ -96,3 +99,6 @@ unalias gls #git log conflicts with dircolors gls
 
 # Local config
 [[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
+
+export NVM_DIR="/Users/elim/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"  # This loads nvm
