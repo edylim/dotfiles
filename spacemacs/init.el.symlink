@@ -105,7 +105,7 @@ values."
 
      ;; Tools
      (shell :variables
-            shell-default-height 30
+            shell-default-height 20
             shell-default-position 'bottom
             shell-default-shell 'multi-term
             shell-default-term-shell "/usr/local/bin/zsh")
