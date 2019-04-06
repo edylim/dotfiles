@@ -25,8 +25,6 @@
   - [Poewrline Fonts](#sec-2-8)
   - [Brew Bundle](#sec-2-9)
   - [Python](#sec-2-10)
-  - [Elixir](#sec-2-11)
-    - [IEx History](#sec-2-11-1)
   - [Node](#sec-2-12)
     - [Node Version Manager](#sec-2-12-1)
     - [Bower](#sec-2-12-2)
@@ -182,7 +180,7 @@ gem install rufo ruby-lint rubocop scss_lint scss_lint_reporter_checkstyle
 
 ### Restart your terminal here<a id="sec-2-7-4"></a>
 
-## Pwoerline Fonts<a id="sec-2-8"></a>
+## Powerline Fonts<a id="sec-2-8"></a>
 
 [Powerline Fonts Repo](https://github.com/powerline/fonts)
 
@@ -200,22 +198,6 @@ mkdir -p $DOTFILE_DIR/.virtualenv
 brew install python
 pip install easy_setup
 pip install virtualenv virtualenvwrapper powerline-status flake8 pygments
-```
-
-## Elixir<a id="sec-2-11"></a>
-
-```shell
-ln -s $DOTFILE_DIR/elixir/iex.exs.symlink ~/.iex.exs
-```
-
-### IEx History<a id="sec-2-11-1"></a>
-
-[Erlang History](http://www.github.com/ferd/erlang-history.git)
-
-```bash
-git clone git@github.com:ferd/erlang-history.git
-cd erlang-history
-sudo make install
 ```
 
 ## Node<a id="sec-2-12"></a>
