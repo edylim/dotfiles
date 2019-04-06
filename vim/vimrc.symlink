@@ -40,12 +40,6 @@ Plug 'tpope/vim-rails'
 Plug 'vim-ruby/vim-ruby'
 Plug 'slim-template/vim-slim'
 Plug 'tpope/vim-bundler'
-" Elixir Plugins
-Plug 'elixir-lang/vim-elixir'
-Plug 'slashmili/alchemist.vim'
-Plug 'powerman/vim-plugin-AnsiEsc'
-Plug 'mattreduce/vim-mix'
-Plug 'fholgado/minibufexpl.vim'
 " Misc
 Plug 'scrooloose/nerdtree'
 Plug 'tmux-plugins/vim-tmux-focus-events'
@@ -75,8 +69,8 @@ set t_Co=256
 
 filetype plugin indent on "Filetype highlighting
 set title "Show filename in titlebar
-set showmatch  " Show matching brackets.
-set mat=5  " Bracket blinking.
+set showmatch  "Show matching brackets.
+set mat=5  "Bracket blinking.
 set ruler "Set Ruler
 "Enable hybrid number mode
 set relativenumber
@@ -126,7 +120,7 @@ set softtabstop=2 "Make backspace go back 4 spaces
 "autocmd FileType * set tabstop=2|set shiftwidth=2|set noexpandtab
 autocmd FileType python set tabstop=4|set shiftwidth=4|set expandtab
 
-set colorcolumn=80 "Mark colum 80
+set colorcolumn=81 "Mark colum 80
 
 " Support for es6
 autocmd BufRead,BufNewFile *.es6 setfiletype javascript

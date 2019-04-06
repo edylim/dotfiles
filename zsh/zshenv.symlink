@@ -1,5 +1,6 @@
 # ZPlug
 export ZPLUG_HOME=/usr/local/opt/zplug
+export MAVEN_OPTS="-Xmx2048m -XX:MaxPermSize=256m -XX:PermSize=256m"
 
 # use vim as the visual editor
 export VISUAL=vim

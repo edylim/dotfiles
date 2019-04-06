@@ -35,6 +35,10 @@ alias s="rspec"
 # Edmunds Yarn
 alias yrd="yarn run dev"
 alias cdv="cd ~/projects/node-site-venom"
+function sb() {
+  "aws --region us-west-2 codebuild start-build --project-name \"node-site-venom-sandbox-build\" --environment-variables-override name=GITLAB_BRANCH,value=$1"
+}
+alias cd..="cd .."
 
 # Pretty print the PATH env
 alias path='echo $PATH | tr -s ":" "\n"'
