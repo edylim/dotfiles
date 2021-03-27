@@ -4,7 +4,8 @@
   - [Mouse](#sec-1-3)
   - [Keyboard](#sec-1-4)
 - [Software](#sec-2)
-  - [Xcode](#sec-2-1)
+  - [iTerm2](#sec-2-1a)
+  - [Xcode](#sec-2-1b)
   - [Homebrew](#sec-2-2)
   - [Git](#sec-2-3)
   - [Github](#sec-2-4)
@@ -25,6 +26,8 @@
   - [Poewrline Fonts](#sec-2-8)
   - [Brew Bundle](#sec-2-9)
   - [Python](#sec-2-10)
+  - [Elixir](#sec-2-11)
+    - [IEx History](#sec-2-11-1)
   - [Node](#sec-2-12)
     - [Node Version Manager](#sec-2-12-1)
     - [Bower](#sec-2-12-2)
@@ -44,14 +47,14 @@
   - [Youtube-dl](#sec-2-18)
   - [Livestream](#sec-2-19)
 
-# OS X Options<a id="sec-1"></a>
+# Optional OS X Options<a id="sec-1"></a>
 
 ## Hostname<a id="sec-1-1"></a>
 
 Change Hostname:
 
 ```bash
-sudo scutil --set HostName
+sudo scutil --set HostName <hostname>
 ```
 
 ## File Dialogs<a id="sec-1-2"></a>
@@ -73,7 +76,11 @@ Set repeat speed fast Set repeat delay low
 
 # Software<a id="sec-2"></a>
 
-## Xcode<a id="sec-2-1"></a>
+## iterm2<a id="sec-2-1a"></a>
+
+[iTerm2](https://iterm2.com/)
+
+## Xcode<a id="sec-2-1b"></a>
 
 ```bash
 xcode-select --install
@@ -82,6 +89,9 @@ xcode-select --install
 ## Homebrew<a id="sec-2-2"></a>
 
 [Brew](http://brew.sh/)
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
 
 ## Git<a id="sec-2-3"></a>
 
@@ -98,6 +108,9 @@ git config --global push.default simple
 
 ```bash
 ssh-keygen
+```
+Just press enter twice for default.
+```bash
 cat ~/.ssh/id_rsa.pub | pbcopy
 ```
 
@@ -114,7 +127,7 @@ git config --global github.oauth-token <token>
 ## Dotfile Setup<a id="sec-2-5"></a>
 
 ```bash
-export DOTFILE_DIR=~/projects/dotfiles
+export DOTFILE_DIR=~/projects/dotfiles # or wherever
 git clone https://github.com/edylim/dotfiles $DOTFILE_DIR
 ```
 
@@ -150,6 +163,19 @@ ln -s $DOTFILE_DIR/zsh/aliases.symlink ~/.aliases
 
 edit ~/.zshenv and set your own DEV<sub>DIR</sub> and DOTFILE<sub>DIR</sub>
 
+Install zplug, scmpuff and coreutils
+```bash
+brew install zplug
+brew install scmpuff
+brew install coreutils
+```
+
+Turn off group-writable permissions for compinit
+```bash
+chmod g-w /usr/local/share/zsh
+chmod g-w /usr/local/share/zsh/site-functions
+```
+
 ### Restart your terminal<a id="sec-2-6-5"></a>
 
 ## Ruby<a id="sec-2-7"></a>
@@ -159,9 +185,14 @@ edit ~/.zshenv and set your own DEV<sub>DIR</sub> and DOTFILE<sub>DIR</sub>
 ```shell
 brew install ruby-build rbenv
 rbenv install -l # find which is the latest ruby version
-rbenv install 2.4.1
-rbenv local 2.4.1
-rbenv global 2.4.1
+rbenv install 3.0.0
+rbenv local 3.0.0
+rbenv global 3.0.0
+```
+
+### Restart your terminal
+
+```shell
 gem install bundle
 rbenv rehash
 ```
@@ -180,9 +211,14 @@ gem install rufo ruby-lint rubocop scss_lint scss_lint_reporter_checkstyle
 
 ### Restart your terminal here<a id="sec-2-7-4"></a>
 
-## Powerline Fonts<a id="sec-2-8"></a>
+## Pwoerline Fonts<a id="sec-2-8"></a>
 
 [Powerline Fonts Repo](https://github.com/powerline/fonts)
+```shell
+mkdir -p $DEV_DIR/powerline
+git clone https://github.com/powerline/fonts.git $DEV_DIR/powerline
+$DEV_DIR/powerline/install.sh
+```
 
 ## Brew Bundle<a id="sec-2-9"></a>
 
@@ -195,9 +231,31 @@ brew bundle
 
 ```shell
 mkdir -p $DOTFILE_DIR/.virtualenv
-brew install python
+pyenv install --list # find latest python version
+pyenv install 3.9.2
+pyenv global 3.9.2
+pyenv local 3.9.2
+echo -e 'if command -v pyenv 1>/dev/null 2>&1; then\n  eval "$(pyenv init -)"\nfi' >> ~/.zshrc
+curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+python get-pip.py
 pip install easy_setup
-pip install virtualenv virtualenvwrapper powerline-status flake8 pygments
+pip install virtualenv powerline-status flake8 pygments
+```
+
+## Elixir<a id="sec-2-11"></a>
+
+```shell
+ln -s $DOTFILE_DIR/elixir/iex.exs.symlink ~/.iex.exs
+```
+
+### IEx History<a id="sec-2-11-1"></a>
+
+[Erlang History](http://www.github.com/ferd/erlang-history.git)
+
+```bash
+git clone git@github.com:ferd/erlang-history.git
+cd erlang-history
+sudo make install
 ```
 
 ## Node<a id="sec-2-12"></a>

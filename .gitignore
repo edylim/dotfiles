@@ -53,6 +53,7 @@ flycheck_*.el
 *.DS_Store
 .AppleDouble
 .LSOverride
+.python-version
 
 # Icon must end with two \r
 Icon
