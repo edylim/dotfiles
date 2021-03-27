@@ -8,6 +8,10 @@ alias v="$VISUAL"
 alias auxp="lsof -i"
 alias aux="ps aux | grep"
 alias kill="kill -9"
+alias ka="killall -9"
+
+# Typo
+alias cd..="cd .."
 
 # Emacs
 alias e="emacsclient -t -a ''"
@@ -34,11 +38,10 @@ alias s="rspec"
 
 # Edmunds Yarn
 alias yrd="yarn run dev"
+alias yd="yarn dev"
+alias ydc="yarn dev-compat"
 alias cdv="cd ~/projects/node-site-venom"
-function sb() {
-  "aws --region us-west-2 codebuild start-build --project-name \"node-site-venom-sandbox-build\" --environment-variables-override name=GITLAB_BRANCH,value=$1"
-}
-alias cd..="cd .."
+alias kan="killall -9 node"
 
 # Pretty print the PATH env
 alias path='echo $PATH | tr -s ":" "\n"'
