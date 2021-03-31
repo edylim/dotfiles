@@ -53,7 +53,7 @@
 
 Change Hostname:
 
-```bash
+```shell
 sudo scutil --set HostName <hostname>
 ```
 
@@ -61,7 +61,7 @@ sudo scutil --set HostName <hostname>
 
 Set OSX Save dialog to always be expanded
 
-```bash
+```shell
 defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode -bool true
 defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode2 -bool true
 ```
@@ -82,20 +82,20 @@ Set repeat speed fast Set repeat delay low
 
 ## Xcode<a id="sec-2-1b"></a>
 
-```bash
+```shell
 xcode-select --install
 ```
 
 ## Homebrew<a id="sec-2-2"></a>
 
 [Brew](http://brew.sh/)
-```bash
+```shell
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
 ## Git<a id="sec-2-3"></a>
 
-```bash
+```shell
 brew install git
 git config --global user.name <user_name>
 git config --global user.email <user_name>@users.noreply.github.com
@@ -106,11 +106,11 @@ git config --global push.default simple
 
 ### Generate ssh key<a id="sec-2-4-1"></a>
 
-```bash
+```shell
 ssh-keygen
 ```
 Just press enter twice for default.
-```bash
+```shell
 cat ~/.ssh/id_rsa.pub | pbcopy
 ```
 
@@ -120,13 +120,13 @@ Paste into github's ssh setting
 
 Grant access to repo and gist [Set Access Tokens](https://github.com/settings/tokens)
 
-```bash
+```shell
 git config --global github.oauth-token <token>
 ```
 
 ## Dotfile Setup<a id="sec-2-5"></a>
 
-```bash
+```shell
 export DOTFILE_DIR=~/projects/dotfiles # or wherever
 git clone https://github.com/edylim/dotfiles $DOTFILE_DIR
 ```
@@ -135,7 +135,7 @@ git clone https://github.com/edylim/dotfiles $DOTFILE_DIR
 
 ### Set Default Shell<a id="sec-2-6-1"></a>
 
-```bash
+```shell
 echo "/usr/local/bin/zsh" | sudo tee -a /etc/shells
 chsh -s $(which zsh)
 ```
@@ -144,13 +144,13 @@ chsh -s $(which zsh)
 
 [Prezto](https://github.com/sorin-ionescu/prezto.git)
 
-```bash
+```shell
 git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$HOME}/.zprezto"
 ```
 
 ### Setup Symlinks<a id="sec-2-6-3"></a>
 
-```bash
+```shell
 ln -s $DOTFILE_DIR/zsh/zshrc.symlink ~/.zshrc
 ln -s $DOTFILE_DIR/zsh/zshenv.symlink ~/.zshenv
 ln -s $DOTFILE_DIR/zsh/zpreztorc.symlink ~/.zpreztorc
@@ -164,14 +164,14 @@ ln -s $DOTFILE_DIR/zsh/aliases.symlink ~/.aliases
 edit ~/.zshenv and set your own DEV<sub>DIR</sub> and DOTFILE<sub>DIR</sub>
 
 Install zplug, scmpuff and coreutils
-```bash
+```shell
 brew install zplug
 brew install scmpuff
 brew install coreutils
 ```
 
 Turn off group-writable permissions for compinit
-```bash
+```shell
 chmod g-w /usr/local/share/zsh
 chmod g-w /usr/local/share/zsh/site-functions
 ```
@@ -252,7 +252,7 @@ ln -s $DOTFILE_DIR/elixir/iex.exs.symlink ~/.iex.exs
 
 [Erlang History](http://www.github.com/ferd/erlang-history.git)
 
-```bash
+```shell
 git clone git@github.com:ferd/erlang-history.git
 cd erlang-history
 sudo make install
@@ -284,7 +284,7 @@ npm install -g create-react-app
 
 ### Yarn<a id="sec-2-12-4"></a>
 
-```
+```shell
 brew install yarn
 ```
 
@@ -312,7 +312,7 @@ mkdir -p ~/.vim/autoload
 
 ### Symlinks<a id="sec-2-13-2"></a>
 
-```bash
+```shell
 ln -s $DOTFILE_DIR/vim/snippets ~/.vim/
 ln -s $DOTFILE_DIR/vim/functions ~/.vim/functions
 ln -s $DOTFILE_DIR/vim/plugins ~/.vim/plugins
@@ -327,7 +327,7 @@ Run vim :PlugInstall
 
 ## SpaceMacs<a id="sec-2-14"></a>
 
-```sh
+```shell
 mkdir -p ~/.spacemacs.d
 git clone https://github.com/syl20bnr/spacemacs ~/.emacs.d
 ln -s $DOTFILE_DIR/spacemacs/init.el.symlink ~/.spacemacs.d/init.el
@@ -335,13 +335,13 @@ ln -s $DOTFILE_DIR/spacemacs/init.el.symlink ~/.spacemacs.d/init.el
 
 ### Markdown Support<a id="sec-2-14-1"></a>
 
-```bash
+```shell
 npm install -g vmd
 ```
 
 ## Tmux<a id="sec-2-15"></a>
 
-```
+```shell
 mkdir -p ~/.tmux/plugins
 ln -s $DOTFILE_DIR/tmux/tmux.conf.symlink ~/.tmux.conf
 git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
@@ -349,23 +349,23 @@ git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
 
 ### Install Plugins<a id="sec-2-15-1"></a>
 
-run tmux ctrl-s shift-i
+run tmux, then ctrl-s shift-i
 
 ## Tig<a id="sec-2-16"></a>
 
-```
+```shell
 ln -s $DOTFILE_DIR/tigrc.symlink ~/.tigrc
 ```
 
 ## Silver Searcher<a id="sec-2-17"></a>
 
-```
+```shell
 ln -s $DOTFILE_DIR/agignore.symlink ~/.agignore
 ```
 
 ## Youtube-dl<a id="sec-2-18"></a>
 
-```
+```shell
 mkdir -p ~/.config/youtube-dl
 ln -s $DOTFILE_DIR/youtube-dl.conf.symlink ~/.config/youtube-dl/config
 ```
@@ -374,7 +374,7 @@ ln -s $DOTFILE_DIR/youtube-dl.conf.symlink ~/.config/youtube-dl/config
 
 Configure Twitch Oauth
 
-```bash
+```shell
 livestreamer --twitch-oauth-authenticate
 ```
 
