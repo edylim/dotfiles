@@ -25,6 +25,9 @@ eval $(gdircolors ~/.dircolors)
 # SCMPuff
 eval "$(scmpuff init -s)"
 
+# asdf
+. $HOME/.asdf/asdf.sh
+
 ################
 # HISTORY SETTINGS
 ################
@@ -72,18 +75,18 @@ bindkey -s "^T" "^[Isudo ^[A" # "t" for "toughguy"
 ##############
 # ZPLUG SETTING
 ###################
-zplug "lukechilds/zsh-nvm"
+#zplug "lukechilds/zsh-nvm"
 
 # Install plugins if there are plugins that have not been installed
-if ! zplug check --verbose; then
-    printf "Install? [y/N]: "
-    if read -q; then
-        echo; zplug install
-    fi
-fi
+#if ! zplug check --verbose; then
+#    printf "Install? [y/N]: "
+#    if read -q; then
+#        echo; zplug install
+#    fi
+#fi
 
 # Then, source plugins and add commands to $PATH
-zplug load --verbose
+#zplug load --verbose
 
 # Configure online help
 unalias run-help
@@ -100,8 +103,8 @@ unalias gls #git log conflicts with dircolors gls
 # Local config
 [[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
 
-export NVM_DIR="~/.nvm"
-[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"  # This loads nvm
+#export NVM_DIR="~/.nvm"
+#[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"  # This loads nvm
 if command -v pyenv 1>/dev/null 2>&1; then
   eval "$(pyenv init -)"
 fi
