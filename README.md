@@ -26,8 +26,7 @@
   - [Poewrline Fonts](#sec-2-8)
   - [Brew Bundle](#sec-2-9)
   - [Python](#sec-2-10)
-  - [Elixir](#sec-2-11)
-    - [IEx History](#sec-2-11-1)
+  - [asdf](#sec-2-11)
   - [Node](#sec-2-12)
     - [Node Version Manager](#sec-2-12-1)
     - [Bower](#sec-2-12-2)
@@ -235,51 +234,30 @@ pyenv install --list # find latest python version
 pyenv install 3.9.2
 pyenv global 3.9.2
 pyenv local 3.9.2
-echo -e 'if command -v pyenv 1>/dev/null 2>&1; then\n  eval "$(pyenv init -)"\nfi' >> ~/.zshrc
 curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
 python get-pip.py
-pip install easy_setup
-pip install virtualenv powerline-status flake8 pygments
 ```
 
-## Elixir<a id="sec-2-11"></a>
+## asdf<a id="sec-2-11"></a>
 
 ```shell
-ln -s $DOTFILE_DIR/elixir/iex.exs.symlink ~/.iex.exs
+brew install asdf gpg
 ```
-
-### IEx History<a id="sec-2-11-1"></a>
-
-[Erlang History](http://www.github.com/ferd/erlang-history.git)
-
+then 
 ```shell
-git clone git@github.com:ferd/erlang-history.git
-cd erlang-history
-sudo make install
+bash -c '${ASDF_DATA_DIR:=$HOME/.asdf}/plugins/nodejs/bin/import-release-team-keyring'
 ```
 
 ## Node<a id="sec-2-12"></a>
 
-### Node Version Manager<a id="sec-2-12-1"></a>
-
 ```shell
-nvm ls-remote # lists available versions to install
-nvm install --lts
-nvm use --lts
-npm install -g npm
-nvm alias default node
-```
-
-### Bower<a id="sec-2-12-2"></a>
-
-```shell
-npm install -g bower
-```
-
-### React Generator<a id="sec-2-12-3"></a>
-
-```shell
-npm install -g create-react-app
+asdf plugin-add nodejs
+bash -c '${ASDF_DATA_DIR:=$HOME/.asdf}/plugins/nodejs/bin/import-release-team-keyring'
+asdf list-all nodejs # Find latest version
+asdf install nodejs <version>
+asdf global nodejs <version>
+asdf local nodejs <version>
+asdf reshim nodejs # to be able to find npm
 ```
 
 ### Yarn<a id="sec-2-12-4"></a>
