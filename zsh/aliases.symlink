@@ -1,0 +1,39 @@
+# Unix
+alias ls="gls --color"
+alias ll="ls -alh"
+alias ln="ln -v"
+alias mkdir="mkdir -p"
+alias auxp="lsof -i"
+alias aux="ps aux | grep"
+alias kill="kill -9"
+alias ka="killall -9"
+alias kan="killall -9 node"
+
+#vim
+alias v="nvim"
+alias vim="nvim"
+
+# Typo
+alias cd..="cd .."
+
+# Emacs
+alias e="emacsclient -t -a ''"
+alias ec="emacsclient -c -n -a ''"
+
+# Tmux
+alias ta='tmux attach'
+alias tn='tmux new'
+alias tls='tmux list-sessions'
+
+# Bundler
+alias b="bundle"
+alias be="bundle exec"
+
+# Pretty print the PATH env
+alias path='echo $PATH | tr -s ":" "\n"'
+
+# yarn
+alias yd="yarn dev"
+
+# Include custom aliases
+[[ -f ~/.aliases.local ]] && source ~/.aliases.local

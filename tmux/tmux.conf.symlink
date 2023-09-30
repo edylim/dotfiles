@@ -1,0 +1,61 @@
+set -g prefix C-a # remap prefix to Control + a
+unbind C-b
+bind-key C-a send-prefix
+
+################
+# TMUX SETTINGS
+################
+set -g history-limit 100000 # Raise history limit
+set -g default-terminal "screen-256color" # pane color option
+set -g pane-border-style bg=#333333
+set -g pane-active-border-style bg=#cc241d
+set -s escape-time 0 # address vim mode switching delay (http://superuser.com/a/252717/65504)
+set -g focus-events on # enable vim focus events
+set -g base-index 1 # start window numbers at 1 to match keyboard order with tmux window order
+set -g status-position top # status bar
+set -g mouse on # fix mouse scroll issues using the tmux-better-mouse-mode plugin
+set -g default-command "reattach-to-user-namespace -l $SHELL" # Fix tmux copy issues, requires brew install reattach-to-user-namespace
+setw -g pane-base-index 1 # see above
+setw -g aggressive-resize on # super useful when using "grouped sessions" and multi-monitor setup
+setw -g mode-keys vi # Use vim keybindings in copy mode
+
+# Uncomment to display music playing
+#tm_spotify="#[fg=$tm_color_music]#(osascript $DEV_DIR/dotfiles/applescripts/spotify.scpt)"
+#set -g status-right $tm_itunes' '$tm_spotify
+
+################
+# TMUX BINDINGS
+################
+unbind -T copy-mode-vi Enter # Update default binding of `Enter` to also use copy-pipe
+bind -T copy-mode-vi Enter send -X copy-pipe "reattach-to-user-namespace pbcopy"
+bind -T copy-mode-vi v send -X begin-selection # Setup 'v' to begin selection as in Vim
+bind -T copy-mode-vi y send -X copy-pipe "reattach-to-user-namespace pbcopy"
+
+# resize panes
+bind -r H resize-pane -L 5
+bind -r J resize-pane -D 5
+bind -r K resize-pane -U 5
+bind -r L resize-pane -R 5
+bind y setw synchronize-panes #synchronize all panes in a window
+
+# split window and fix path
+bind | split-window -h -c "#{pane_current_path}"
+bind - split-window -v -c "#{pane_current_path}"
+
+###############
+# TMUX PLUGINS
+###############
+# prefix + I - To Install Plugins | prefix + U - To update plugins
+set -g @plugins 'tmux-plugins/tpm'
+set -g @plugins 'tmux-plugins/tmux-resurrect'
+set -g @plugins 'christoomey/vim-tmux-navigator'
+set -g @plugins 'nhdaly/tmux-better-mouse-mode'
+
+# === !! Auto-install tpm if it hasn't been installed already !! ===
+if "test ! -d ~/.tmux/plugins/tpm" \
+     "run 'git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm'"
+
+if-shell "[ -f ~/.tmux.conf.local ]" 'source ~/.tmux.conf.local'
+
+# Initializes TMUX plugin manager. Keep this line at the very bottom of tmux.conf.
+run '~/.tmux/plugins/tpm/tpm'
