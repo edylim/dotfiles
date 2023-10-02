@@ -6,7 +6,9 @@ bind-key C-a send-prefix
 # TMUX SETTINGS
 ################
 set -g history-limit 100000 # Raise history limit
-set -g default-terminal "screen-256color" # pane color option
+set -g default-terminal "tmux-256color" # pane color option
+set -g terminal-overrides ",xterm-256color*:Tc"
+set -as terminal-overrides ',xterm*:sitm=\E[3m'
 set -g pane-border-style bg=#333333
 set -g pane-active-border-style bg=#cc241d
 set -s escape-time 0 # address vim mode switching delay (http://superuser.com/a/252717/65504)
@@ -19,9 +21,9 @@ setw -g pane-base-index 1 # see above
 setw -g aggressive-resize on # super useful when using "grouped sessions" and multi-monitor setup
 setw -g mode-keys vi # Use vim keybindings in copy mode
 
-# Uncomment to display music playing
-#tm_spotify="#[fg=$tm_color_music]#(osascript $DEV_DIR/dotfiles/applescripts/spotify.scpt)"
-#set -g status-right $tm_itunes' '$tm_spotify
+# Music script
+tm_spotify="#[fg=$tm_color_music]#(osascript $DEV_DIR/dotfiles/applescripts/spotify.scpt)"
+set -g status-left $tm_spotify
 
 ################
 # TMUX BINDINGS
@@ -50,6 +52,8 @@ set -g @plugins 'tmux-plugins/tpm'
 set -g @plugins 'tmux-plugins/tmux-resurrect'
 set -g @plugins 'christoomey/vim-tmux-navigator'
 set -g @plugins 'nhdaly/tmux-better-mouse-mode'
+set -g @plugins 'egel/tmux-gruvbox'
+set -g @tmux-gruvbox 'dark' # or 'light'
 
 # === !! Auto-install tpm if it hasn't been installed already !! ===
 if "test ! -d ~/.tmux/plugins/tpm" \
