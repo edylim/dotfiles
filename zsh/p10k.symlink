@@ -403,10 +403,18 @@
       # Otherwise show the first 12 … the last 12.
       # Tip: To always show local branch name in full without truncation, delete the next line.
       (( $#branch > 32 )) && branch[13,-13]="…"  # <-- this line
-      if [[ $VCS_STATUS_HAS_UNSTAGED -gt 0 || $VCS_STATUS_HAS_STAGED -gt 0 ]] then
+      if [[ 
+        $VCS_STATUS_HAS_UNSTAGED -gt 0 || 
+        $VCS_STATUS_HAS_STAGED -gt 0 ||
+        $VCS_STATUS_COMMITS_AHEAD -gt 0 ||
+        $VCS_STATUS_COMMITS_BEHIND -gt 0
+      ]] then
         echo "$VCS_STATUS_HAS_UNSTAGED - $VCS_STATUS_HAS_STAGED"
         res+="${modified}${(g::)POWERLEVEL9K_VCS_BRANCH_ICON}${branch//\%/%%}"
-      elif [[ $VCS_STATUS_HAS_CONFLICTED -gt 0 ]] then
+      elif [[ 
+        $VCS_STATUS_HAS_CONFLICTED -gt 0 ||
+        ($VCS_STATUS_COMMITS_BEHIND -gt 0 && $VCS_STATUS_COMMITS_AHEAD -gt 0) 
+      ]] then
         res+="${conflicted}${(g::)POWERLEVEL9K_VCS_BRANCH_ICON}${branch//\%/%%}"
       else
         res+="${clean}${(g::)POWERLEVEL9K_VCS_BRANCH_ICON}${branch//\%/%%}"
