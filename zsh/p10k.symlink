@@ -353,11 +353,11 @@
   #####################################[ vcs: git status ]######################################
   # Version control system colors.
   typeset -g POWERLEVEL9K_VCS_CLEAN_BACKGROUND=235
-  typeset -g POWERLEVEL9K_VCS_CLEAN_FOREGROUND=10
+  typeset -g POWERLEVEL9K_VCS_CLEAN_FOREGROUND=28
   typeset -g POWERLEVEL9K_VCS_MODIFIED_BACKGROUND=235
-  typeset -g POWERLEVEL9K_VCS_MODIFIED_FOREGROUND=226
+  typeset -g POWERLEVEL9K_VCS_MODIFIED_FOREGROUND=220
   typeset -g POWERLEVEL9K_VCS_UNTRACKED_BACKGROUND=235
-  typeset -g POWERLEVEL9K_VCS_UNTRACKED_FOREGROUND=226
+  typeset -g POWERLEVEL9K_VCS_UNTRACKED_FOREGROUND=220
   typeset -g POWERLEVEL9K_VCS_CONFLICTED_BACKGROUND=235
   typeset -g POWERLEVEL9K_VCS_CONFLICTED_FOREGROUND=9
   typeset -g POWERLEVEL9K_VCS_LOADING_BACKGROUND=8
@@ -389,11 +389,11 @@
 
     # Styling for different parts of Git status.
     local       meta='%7F'   # white foreground
-    local      clean='%40F'  # lime foreground
+    local      clean='%28F'  # green foreground
     local    stashed='%14F'  # aqua foreground
-    local   modified='%226F' # orange foreground
-    local  untracked='%226F' # orange foreground
-    local conflicted='%1F'   # red foreground
+    local   modified='%220F' # orange foreground
+    local  untracked='%220F' # orange foreground
+    local conflicted='%9F'   # red foreground
 
     local res
 
@@ -1664,7 +1664,7 @@
   ####################################[ time: current time ]####################################
   # Current time color.
   typeset -g POWERLEVEL9K_TIME_FOREGROUND=0
-  typeset -g POWERLEVEL9K_TIME_BACKGROUND=228
+  typeset -g POWERLEVEL9K_TIME_BACKGROUND=249
   # Format for the current time: 09:51:02. See `man 3 strftime`.
   typeset -g POWERLEVEL9K_TIME_FORMAT='%D{%I:%M:%S %p}'
   # If set to true, time will update when you hit enter. This way prompts for the past
