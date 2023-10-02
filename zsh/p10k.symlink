@@ -406,7 +406,7 @@
       if [[ $VCS_STATUS_HAS_UNSTAGED -gt 0 || $VCS_STATUS_HAS_STAGED -gt 0 ]] then
         echo "$VCS_STATUS_HAS_UNSTAGED - $VCS_STATUS_HAS_STAGED"
         res+="${modified}${(g::)POWERLEVEL9K_VCS_BRANCH_ICON}${branch//\%/%%}"
-      elif [[ $VCS_STATUS_HAS_CONFLICTED ]] then
+      elif [[ $VCS_STATUS_HAS_CONFLICTED -gt 0 ]] then
         res+="${conflicted}${(g::)POWERLEVEL9K_VCS_BRANCH_ICON}${branch//\%/%%}"
       else
         res+="${clean}${(g::)POWERLEVEL9K_VCS_BRANCH_ICON}${branch//\%/%%}"
