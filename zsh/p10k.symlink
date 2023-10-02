@@ -389,7 +389,7 @@
 
     # Styling for different parts of Git status.
     local       meta='%7F'   # white foreground
-    local      clean='%10F'  # lime foreground
+    local      clean='%40F'  # lime foreground
     local    stashed='%14F'  # aqua foreground
     local   modified='%226F' # orange foreground
     local  untracked='%226F' # orange foreground
@@ -409,7 +409,6 @@
         $VCS_STATUS_COMMITS_AHEAD -gt 0 ||
         $VCS_STATUS_COMMITS_BEHIND -gt 0
       ]] then
-        echo "$VCS_STATUS_HAS_UNSTAGED - $VCS_STATUS_HAS_STAGED"
         res+="${modified}${(g::)POWERLEVEL9K_VCS_BRANCH_ICON}${branch//\%/%%}"
       elif [[ 
         $VCS_STATUS_HAS_CONFLICTED -gt 0 ||
