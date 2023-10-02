@@ -404,6 +404,7 @@
       # Tip: To always show local branch name in full without truncation, delete the next line.
       (( $#branch > 32 )) && branch[13,-13]="…"  # <-- this line
       if [[ $VCS_STATUS_HAS_UNSTAGED -gt 0 || $VCS_STATUS_HAS_STAGED ]] then
+        echo "$VCS_STATUS_HAS_UNSTAGED - $VCS_STATUS_HAS_STAGED"
         res+="${modified}${(g::)POWERLEVEL9K_VCS_BRANCH_ICON}${branch//\%/%%}"
       elif [[ $VCS_STATUS_HAS_CONFLICTED ]] then
         res+="${conflicted}${(g::)POWERLEVEL9K_VCS_BRANCH_ICON}${branch//\%/%%}"
