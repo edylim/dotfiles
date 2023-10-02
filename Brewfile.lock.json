@@ -1347,21 +1347,21 @@
       "iterm2": {
         "version": "3.4.20",
         "options": {
+          "full_name": "iterm2",
           "args": {
             "appdir": "~/Applications",
             "require_sha": true
-          },
-          "full_name": "iterm2"
+          }
         }
       },
       "filebot": {
         "version": "5.1.1",
         "options": {
+          "full_name": "filebot",
           "args": {
             "appdir": "~/Applications",
             "require_sha": true
-          },
-          "full_name": "filebot"
+          }
         }
       }
     }
@@ -1375,6 +1375,14 @@
         "CLT": "14.3.1.0.1.1683849156",
         "Xcode": "14.3",
         "macOS": "13.4.1"
+      },
+      "sonoma": {
+        "HOMEBREW_VERSION": "4.1.13-80-g5ec560a",
+        "HOMEBREW_PREFIX": "/opt/homebrew",
+        "Homebrew/homebrew-core": "api",
+        "CLT": "14.3.1.0.1.1683849156",
+        "Xcode": "14.3",
+        "macOS": "14.0"
       }
     }
   }

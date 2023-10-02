@@ -32,5 +32,4 @@ brew 'zplug'
 brew 'zsh'
 brew 'zsh-autosuggestions'
 
-cask 'iterm2', args: { appdir: "~/Applications" }
-cask 'filebot', args: { appdir: "~/Applications" }
+cask 'iterm2'
