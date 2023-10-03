@@ -1,5 +1,7 @@
 # Created by https://www.gitignore.io/api/emacs,osx
 
+Brewfile.lock.json
+
 ### Emacs ###
 # -*- mode: gitignore; -*-
 *~
