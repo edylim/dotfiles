@@ -75,6 +75,13 @@ ln -s $DOTFILE_DIR/zsh/dircolors.symlink ~/.dircolors
 ln -s $DOTFILE_DIR/zsh/aliases.symlink ~/.aliases
 ```
 
+## Neovim
+
+```shell
+git clone https://github.com/edylim/grumpy-vim $DOTFILE_DIR/vim
+ln -s $DOTFILE_DIR/vim ~/.config/nvim
+```
+
 ### Git
 
 ```shell

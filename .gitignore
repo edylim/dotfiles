@@ -47,6 +47,8 @@ flycheck_*.el
 # directory configuration
 .dir-locals.el
 
+# this is it's own repo
+/vim
 
 ### OSX ###
 *.DS_Store
