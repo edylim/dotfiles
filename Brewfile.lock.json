@@ -1367,6 +1367,16 @@
             "require_sha": true
           }
         }
+      },
+      "kitty": {
+        "version": "0.30.0",
+        "options": {
+          "full_name": "kitty",
+          "args": {
+            "appdir": "~/Applications",
+            "require_sha": true
+          }
+        }
       }
     }
   },

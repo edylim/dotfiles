@@ -34,3 +34,4 @@ brew 'zsh'
 brew 'zsh-autosuggestions'
 
 cask 'iterm2'
+cask 'kitty'
