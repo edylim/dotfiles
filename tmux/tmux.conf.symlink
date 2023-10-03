@@ -6,9 +6,7 @@ bind-key C-a send-prefix
 # TMUX SETTINGS
 ################
 set -g history-limit 100000 # Raise history limit
-set -g default-terminal "tmux-256color" # pane color option
-set -g terminal-overrides ",xterm-256color*:Tc"
-set -as terminal-overrides ',xterm*:sitm=\E[3m'
+set -g default-terminal "${TERM}" # pane color option
 set -g pane-border-style bg=#333333
 set -g pane-active-border-style bg=#cc241d
 set -s escape-time 0 # address vim mode switching delay (http://superuser.com/a/252717/65504)
