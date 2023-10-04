@@ -33,6 +33,8 @@ tramp
 # AUCTeX auto folder
 /auto/
 
+/grumpy-vim/
+
 # cask packages
 .cask/
 dist/
