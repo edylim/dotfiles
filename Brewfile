@@ -1,12 +1,7 @@
-tap 'homebrew/cask'
-tap 'homebrew/bundle'
-tap "homebrew/core"
-tap "homebrew/services"
-
-tap "jesseduffield/lazygit"
+tap 'jesseduffield/lazygit'
 tap 'neovim/neovim'
 
-cask_args appdir: "~/Applications", require_sha: true
+cask_args appdir: '~/Applications', require_sha: true
 
 # Utilities
 brew 'asdf'
@@ -18,6 +13,7 @@ brew 'gcc'
 brew 'openssl'
 brew 'readline'            # read
 brew 'ripgrep'
+brew 'stow'
 brew 'tig'
 brew 'wget'
 brew 'yarn'
@@ -43,14 +39,11 @@ brew 'lazygit'
 brew 'scmpuff'             # git [number] shortcuts for files
 
 # Window Manager
-brew 'koekeishiya/formulae/skhd'
-brew 'yabai'
-
+cask 'phoenix'
 
 # Apps
 cask 'kitty'
 brew 'neovim'
 brew 'reattach-to-user-namespace' # tmux pbcopy
 brew 'tmux'
-brew 'tmux-mem-cpu-load'
 brew 'vim'
