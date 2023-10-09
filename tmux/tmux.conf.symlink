@@ -20,8 +20,7 @@ setw -g aggressive-resize on # super useful when using "grouped sessions" and mu
 setw -g mode-keys vi # Use vim keybindings in copy mode
 
 # Music script
-tm_spotify="#[fg=$tm_color_music]#(osascript $DEV_DIR/dotfiles/applescripts/spotify.scpt)"
-set -g status-left $tm_spotify
+set -g status-right "♫ #{music_status} #{artist}: #{track} | %a %h-%d %H:%M "
 
 ################
 # TMUX BINDINGS
@@ -51,6 +50,7 @@ set -g @plugins 'tmux-plugins/tmux-resurrect'
 set -g @plugins 'christoomey/vim-tmux-navigator'
 set -g @plugins 'nhdaly/tmux-better-mouse-mode'
 set -g @plugins 'egel/tmux-gruvbox'
+set -g @plugins 'xamut/tmux-spotify'
 set -g @tmux-gruvbox 'dark' # or 'light'
 
 # === !! Auto-install tpm if it hasn't been installed already !! ===

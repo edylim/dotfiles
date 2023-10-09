@@ -35,6 +35,8 @@ eval $(gdircolors ~/.dircolors)
 # SCMPuff
 eval "$(scmpuff init -s)"
 
+export MUSIC_APP="Spotify"
+
 ##################
 # HISTORY SETTINGS
 ##################
