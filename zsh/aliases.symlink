@@ -9,6 +9,13 @@ alias kill="kill -9"
 alias ka="killall -9"
 alias kan="killall -9 node"
 
+# copilot cli
+alias gce="gh copilot explain "
+alias gcs="gh copilot suggest "
+
+# go
+alias air='$(go env GOPATH)/bin/air'
+
 #vim
 alias v="nvim"
 alias vim="nvim"
