@@ -26,10 +26,8 @@ fi
 #
 # Paths
 #
-if command -v go &> /dev/null; then
-  export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
-  export PATH=$PATH:$(go env GOPATH)/bin
-fi
+export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
+export PATH=$PATH:$(go env GOPATH)/bin
 
 # Ensure path arrays do not contain duplicates.
 typeset -gU cdpath fpath mailpath path
