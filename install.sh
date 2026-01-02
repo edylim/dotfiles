@@ -3,6 +3,33 @@
 # Exit on error, undefined vars, and pipe failures
 set -euo pipefail
 
+# --- Bootstrap: Handle curl pipe installation ---
+# Usage: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/edylim/dotfiles/master/install.sh)"
+DOTFILES_REPO="https://github.com/edylim/dotfiles.git"
+DOTFILES_TARGET="$HOME/.dotfiles"
+
+if [[ -z "${BASH_SOURCE[0]:-}" ]] || [[ "${BASH_SOURCE[0]}" == "bash" ]]; then
+    # Running from curl pipe - need to clone first
+    echo "Bootstrapping dotfiles installation..."
+
+    if ! command -v git &> /dev/null; then
+        echo "Error: git is required. Please install git first."
+        exit 1
+    fi
+
+    if [[ -d "$DOTFILES_TARGET" ]]; then
+        echo "Dotfiles already exist at $DOTFILES_TARGET"
+        echo "Updating..."
+        git -C "$DOTFILES_TARGET" pull --rebase || true
+    else
+        echo "Cloning dotfiles to $DOTFILES_TARGET..."
+        git clone "$DOTFILES_REPO" "$DOTFILES_TARGET"
+    fi
+
+    # Re-execute from cloned repo
+    exec "$DOTFILES_TARGET/install.sh"
+fi
+
 # --- Global Variables ---
 DOTFILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 OS=""
