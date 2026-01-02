@@ -4,7 +4,7 @@
 set -euo pipefail
 
 # --- Global Variables ---
-DOTFILES_DIR="$HOME/.dotfiles"
+DOTFILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 OS=""
 PKG_MANAGER=""
 
@@ -56,7 +56,6 @@ pkg_installed() {
 # --- Gum Installation ---
 install_gum() {
     if pkg_installed gum; then
-        success "gum is already installed."
         return 0
     fi
 
@@ -76,7 +75,6 @@ install_gum() {
             sudo apt-get install -y gum
             ;;
     esac
-    success "gum installed."
 }
 
 # --- Package Manager Setup ---
@@ -93,140 +91,147 @@ setup_package_manager() {
                     eval "$(/usr/local/bin/brew shellenv)"
                 fi
             fi
-            info "Updating Homebrew..."
-            brew update
+            # brew update # Optional, can be slow
             ;;
         pacman)
-            info "Updating pacman..."
-            sudo pacman -Syu --noconfirm
+            # sudo pacman -Syu --noconfirm # Optional
             ;;
         apt)
-            info "Updating apt..."
             sudo apt-get update
             ;;
     esac
-    success "Package manager ready."
 }
 
 # --- Core Package Installation ---
 install_core_packages() {
-    info "Installing core packages..."
+    info "Installing core packages (git, stow, curl)..."
 
     case "$OS" in
         macos)
-            info "Installing packages from Brewfile..."
-            brew bundle --file="$DOTFILES_DIR/homebrew/Brewfile" || warn "Some Brewfile packages may have failed"
+            brew install git stow curl wget
             ;;
         arch)
-            local PACKAGES=(
-                git stow zsh neovim tmux fzf bat htop github-cli jq tree wget
-                zoxide lazygit ripgrep fd ffmpeg p7zip poppler imagemagick
-                kitty nodejs npm onefetch
-            )
-            info "Installing: ${PACKAGES[*]}"
-            sudo pacman -S --noconfirm --needed "${PACKAGES[@]}"
-
-            # Install yazi from official repos (available in Arch)
-            sudo pacman -S --noconfirm --needed yazi
-
-            # Install scmpuff from AUR if yay is available
-            if pkg_installed yay; then
-                yay -S --noconfirm scmpuff || warn "scmpuff installation failed"
-            else
-                warn "yay not found, skipping scmpuff (AUR package)"
-            fi
+            sudo pacman -S --noconfirm --needed git stow curl wget
             ;;
         debian)
-            local PACKAGES=(
-                git stow zsh neovim tmux fzf bat htop gh jq tree wget curl
-                zoxide ripgrep fd-find build-essential ffmpeg p7zip-full unzip
-                poppler-utils librsvg2-bin imagemagick kitty nodejs npm
-            )
-            info "Installing: ${PACKAGES[*]}"
-            sudo apt-get install -y "${PACKAGES[@]}"
-
-            # Install lazygit (not in default Ubuntu repos)
-            if ! pkg_installed lazygit; then
-                info "Installing lazygit..."
-                LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep -Po '"tag_name": "v\K[^"]*')
-                curl -Lo /tmp/lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz"
-                sudo tar xf /tmp/lazygit.tar.gz -C /usr/local/bin lazygit
-                rm /tmp/lazygit.tar.gz
-            fi
-
-            # Install yazi (not in default Ubuntu repos)
-            if ! pkg_installed yazi; then
-                info "Installing yazi..."
-                local YAZI_URL=$(curl -s "https://api.github.com/repos/sxyazi/yazi/releases/latest" | grep -Po '"browser_download_url": "\K[^"]*x86_64-unknown-linux-musl.zip')
-                curl -Lo /tmp/yazi.zip "$YAZI_URL"
-                unzip -o /tmp/yazi.zip -d /tmp/yazi
-                sudo mv /tmp/yazi/yazi-x86_64-unknown-linux-musl/yazi /usr/local/bin/
-                sudo mv /tmp/yazi/yazi-x86_64-unknown-linux-musl/ya /usr/local/bin/
-                rm -rf /tmp/yazi.zip /tmp/yazi
-            fi
-
-            # Install onefetch
-            if ! pkg_installed onefetch; then
-                info "Installing onefetch..."
-                curl -Lo /tmp/onefetch.deb "https://github.com/o2sh/onefetch/releases/latest/download/onefetch_linux_amd64.deb" 2>/dev/null || \
-                    curl -Lo /tmp/onefetch.deb "$(curl -s https://api.github.com/repos/o2sh/onefetch/releases/latest | grep -Po '"browser_download_url": "\K[^"]*amd64.deb')"
-                sudo dpkg -i /tmp/onefetch.deb || sudo apt-get install -f -y
-                rm /tmp/onefetch.deb
-            fi
-
-            # Install scmpuff
-            if ! pkg_installed scmpuff; then
-                info "Installing scmpuff..."
-                local SCMPUFF_URL=$(curl -s "https://api.github.com/repos/mroth/scmpuff/releases/latest" | grep -Po '"browser_download_url": "\K[^"]*linux_amd64.tar.gz')
-                curl -Lo /tmp/scmpuff.tar.gz "$SCMPUFF_URL"
-                sudo tar xf /tmp/scmpuff.tar.gz -C /usr/local/bin scmpuff
-                rm /tmp/scmpuff.tar.gz
-            fi
+            sudo apt-get install -y git stow curl wget
             ;;
     esac
     success "Core packages installed."
 }
 
-# --- Install NPM Tools ---
-install_npm_tools() {
-    info "Installing global npm packages..."
-    local NPM_PACKAGES=(
-        "eslint@latest"
-        "prettier@latest"
-        "eslint-config-airbnb-base@latest"
-        "eslint-plugin-import@latest"
-        "eslint-config-prettier@latest"
-    )
+# --- Install Mise & Runtimes ---
+install_mise() {
+    info "Installing Mise (Runtime Manager)..."
+    
+    # Install Mise
+    case "$OS" in
+        macos)
+            if ! pkg_installed mise; then
+                brew install mise
+            fi
+            ;;
+        arch)
+            if ! pkg_installed mise; then
+                sudo pacman -S --noconfirm --needed mise || \
+                # Fallback to AUR or manual if not in repo (it is in Extra usually)
+                curl https://mise.run | sh
+            fi
+            ;;
+        debian)
+            if ! pkg_installed mise; then
+                # Debian doesn't have mise in standard repos usually
+                curl https://mise.run | sh
+                # Add to path for this session
+                export PATH="$HOME/.local/bin:$PATH"
+            fi
+            ;;
+    esac
 
-    # Add gemini-cli on Linux (already in Brewfile for macOS)
+    # Activate mise for this script session
+    eval "$(mise activate bash)"
+    success "Mise installed."
+}
+
+configure_mise_runtimes() {
+    info "Configuring Runtimes via Mise (Node.js, Python)..."
+    
+    # Ensure mise is active
+    if ! command -v mise &> /dev/null; then
+        # Try finding it if not in PATH yet
+        if [[ -f "$HOME/.local/bin/mise" ]]; then
+            export PATH="$HOME/.local/bin:$PATH"
+        fi
+        eval "$(mise activate bash)"
+    fi
+
+    # Install Node.js
+    info "Installing Node.js (latest)..."
+    mise use --global node@latest
+    
+    # Install Python
+    info "Installing Python (latest)..."
+    mise use --global python@latest
+
+    success "Runtimes configured."
+}
+
+# --- Install Yarn ---
+install_yarn() {
+    info "Installing Yarn..."
+    
+    # Ensure we have node
+    if ! command -v node &> /dev/null; then
+        warn "Node.js not found. Installing via mise..."
+        install_mise
+        configure_mise_runtimes
+    fi
+
+    if ! pkg_installed yarn; then
+        npm install -g yarn || warn "Failed to install yarn via npm"
+    else
+        success "Yarn already installed."
+    fi
+}
+
+# --- Install Chrome ---
+install_chrome() {
+    info "Installing Google Chrome..."
+    case "$OS" in
+        macos)
+            brew install --cask google-chrome
+            ;;
+        debian)
+            if ! pkg_installed google-chrome; then
+                wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O /tmp/chrome.deb
+                sudo dpkg -i /tmp/chrome.deb || sudo apt-get install -f -y
+                rm /tmp/chrome.deb
+            else
+                success "Chrome already installed."
+            fi
+            ;;
+        arch)
+            # Check for yay or paru
+            if pkg_installed yay; then
+                yay -S --noconfirm google-chrome
+            elif pkg_installed paru; then
+                paru -S --noconfirm google-chrome
+            else
+                warn "AUR helper (yay/paru) not found. Skipping Chrome installation on Arch."
+                warn "Install manually or install 'yay' first."
+            fi
+            ;;
+    esac
+}
+
+# --- Install JankyBorders (macOS only) ---
+install_jankyborders() {
     if [[ "$OS" != "macos" ]]; then
-        NPM_PACKAGES+=("@google/gemini-cli@latest")
+        return
     fi
-
-    sudo npm install -g "${NPM_PACKAGES[@]}" || warn "Some npm packages may have failed"
-    success "NPM packages installed."
-}
-
-# --- Install Prezto ---
-install_prezto() {
-    info "Installing Prezto..."
-    if [[ -d "${ZDOTDIR:-$HOME}/.zprezto" ]]; then
-        success "Prezto already installed."
-    else
-        git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$HOME}/.zprezto"
-        success "Prezto installed."
-    fi
-}
-
-# --- Install TPM (Tmux Plugin Manager) ---
-install_tpm() {
-    info "Installing TPM (Tmux Plugin Manager)..."
-    if [[ -d "$HOME/.tmux/plugins/tpm" ]]; then
-        success "TPM already installed."
-    else
-        git clone https://github.com/tmux-plugins/tpm ~/.tmux/plugins/tpm
-        success "TPM installed."
-    fi
+    info "Installing JankyBorders..."
+    brew tap FelixKratz/formulae
+    brew install borders
 }
 
 # --- Install Awrit ---
@@ -242,7 +247,11 @@ install_awrit() {
     fi
 
     # Remove default kitty.css so stow can create symlink
-    [[ -f "$AW_INSTALL_DIR/dist/kitty.css" ]] && rm "$AW_INSTALL_DIR/dist/kitty.css"
+    # We copied existing config to awrit/.awrit/dist/kitty.css
+    # Stow will handle the linking if the target file doesn't exist or is a link
+    if [[ -f "$AW_INSTALL_DIR/dist/kitty.css" && ! -L "$AW_INSTALL_DIR/dist/kitty.css" ]]; then
+         rm "$AW_INSTALL_DIR/dist/kitty.css"
+    fi
 }
 
 # --- Install GrumpyVim ---
@@ -251,15 +260,24 @@ install_grumpyvim() {
     local NVIM_CONFIG_DIR="$HOME/.config/nvim"
 
     if [[ -d "$NVIM_CONFIG_DIR" ]]; then
-        if [[ -d "$NVIM_CONFIG_DIR/.git" ]] && git -C "$NVIM_CONFIG_DIR" remote -v | grep -q "grumpy-vim"; then
-            success "GrumpyVim already installed."
-            return
+        if [[ -d "$NVIM_CONFIG_DIR/.git" ]] && git -C "$NVIM_CONFIG_DIR" remote -v | grep -q "grumpyvim"; then
+            info "GrumpyVim already cloned. Running its installer..."
+        else
+            warn "Existing Neovim config found. Backing up..."
+            mv "$NVIM_CONFIG_DIR" "$NVIM_CONFIG_DIR.bak.$(date +%F-%H%M%S)"
+            git clone https://github.com/edylim/grumpyvim.git "$NVIM_CONFIG_DIR"
         fi
-        warn "Existing Neovim config found. Backing up..."
-        mv "$NVIM_CONFIG_DIR" "$NVIM_CONFIG_DIR.bak.$(date +%F-%H%M%S)"
+    else
+        git clone https://github.com/edylim/grumpyvim.git "$NVIM_CONFIG_DIR"
     fi
 
-    git clone https://github.com/edylim/grumpy-vim.git "$NVIM_CONFIG_DIR"
+    # Execute GrumpyVim's own install script
+    if [[ -f "$NVIM_CONFIG_DIR/install.sh" ]]; then
+        info "Executing GrumpyVim install script..."
+        chmod +x "$NVIM_CONFIG_DIR/install.sh"
+        bash "$NVIM_CONFIG_DIR/install.sh"
+    fi
+    
     success "GrumpyVim installed."
 }
 
@@ -267,7 +285,15 @@ install_grumpyvim() {
 stow_package() {
     local pkg="$1"
     info "Stowing $pkg..."
+    # Ensure dotfiles dir is where we expect
     cd "$DOTFILES_DIR"
+    
+    # Check if package directory exists
+    if [[ ! -d "$pkg" ]]; then
+        warn "Package directory '$pkg' not found in $DOTFILES_DIR. Skipping."
+        return
+    fi
+
     stow -R "$pkg" 2>/dev/null || stow "$pkg"
     cd - > /dev/null
 }
@@ -279,6 +305,17 @@ stow_dotfiles() {
         stow_package "$pkg"
     done
     success "Dotfiles stowed."
+}
+
+# --- Install Prezto ---
+install_prezto() {
+    info "Installing Prezto..."
+    if [[ -d "${ZDOTDIR:-$HOME}/.zprezto" ]]; then
+        success "Prezto already installed."
+    else
+        git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$HOME}/.zprezto"
+        success "Prezto installed."
+    fi
 }
 
 # --- Set Zsh as Default Shell ---
@@ -304,53 +341,43 @@ set_zsh_default() {
     fi
 }
 
-# --- Display Summary ---
-display_summary() {
-    gum style \
-        --border normal \
-        --margin "1" \
-        --padding "1 2" \
-        --border-foreground 212 \
-        "Dotfiles Installer for macOS, Ubuntu & Omarchy"
-
-    echo ""
-    gum style --foreground 212 "This will install and configure:"
-    echo ""
-    echo "  Core Tools:     git, stow, zsh, neovim, tmux, fzf, bat, ripgrep, fd"
-    echo "  CLI Utilities:  htop, jq, tree, wget, zoxide, lazygit, yazi"
-    echo "  Media:          ffmpeg, imagemagick, poppler"
-    echo "  Terminal:       kitty"
-    echo "  Shell:          Prezto framework, Powerlevel10k theme"
-    echo "  Dev Tools:      Node.js, ESLint, Prettier"
-    echo "  Extras:         Awrit, GrumpyVim, vim-kitty-navigator"
-    echo ""
-}
-
 # --- Main Interactive Menu ---
 main() {
     detect_os
     setup_package_manager
     install_gum
 
-    display_summary
-
-    # Phase 1: Core choices
-    gum style "Select components to install:"
     echo ""
+    gum style \
+        --border normal \
+        --margin "1" \
+        --padding "1 2" \
+        --border-foreground 212 \
+        "Dotfiles Installer (macOS, Ubuntu, Omarchy)"
 
-    local choices
-    choices=$(gum choose --no-limit --height 15 \
-        "Core Packages" \
-        "Zsh + Prezto" \
-        "Kitty Terminal" \
-        "Tmux + TPM" \
-        "GrumpyVim (Neovim)" \
-        "Awrit (Terminal Browser)" \
-        "vim-kitty-navigator" \
-        "Yazi (File Manager)" \
-        "Linting (ESLint/Prettier)" \
-        "Set Zsh as Default Shell"
+    # Define available packages
+    local ALL_PACKAGES=(
+        "Core (Git, Stow, Curl)" 
+        "Zsh & Prezto"
+        "Mise & Runtimes (Node, Python)" 
+        "Yarn" 
+        "Google Chrome" 
+        "Kitty Terminal"
+        "GrumpyVim (Neovim)" 
+        "Awrit" 
+        "JankyBorders (macOS)" 
+        "Linting Configs"
+        "Bin Scripts"
+        "Stow Configs"
     )
+
+    # Join array with commas for default selection
+    # Use a subshell or temporary IFS change to avoid affecting subsequent commands
+    local ALL_SELECTED
+    ALL_SELECTED=$(IFS=, ; echo "${ALL_PACKAGES[*]}")
+    
+    local choices
+    choices=$(gum choose --no-limit --height 15 --selected="$ALL_SELECTED" "${ALL_PACKAGES[@]}")
 
     if [[ -z "$choices" ]]; then
         warn "No selections made. Exiting."
@@ -358,98 +385,73 @@ main() {
     fi
 
     echo ""
-    gum style --foreground 212 "Selected: "
-    echo "$choices" | sed 's/^/  - /'
-    echo ""
-
-    if ! gum confirm "Proceed with installation?"; then
-        info "Installation cancelled."
-        exit 0
-    fi
-
-    echo ""
     gum style --foreground 212 "Starting installation..."
-    echo ""
 
-    # Track what to stow
-    local stow_packages=()
+    local stow_pkgs=()
 
-    # Core Packages
-    if echo "$choices" | grep -q "Core Packages"; then
+    if echo "$choices" | grep -q "Core"; then
         install_core_packages
     fi
 
-    # Zsh + Prezto
-    if echo "$choices" | grep -q "Zsh + Prezto"; then
+    if echo "$choices" | grep -q "Zsh & Prezto"; then
         install_prezto
-        stow_packages+=("zsh")
+        set_zsh_default
+        stow_pkgs+=("zsh")
     fi
 
-    # Kitty Terminal
+    if echo "$choices" | grep -q "Mise & Runtimes"; then
+        install_mise
+        configure_mise_runtimes
+        stow_pkgs+=("mise")
+    fi
+
+    if echo "$choices" | grep -q "Yarn"; then
+        install_yarn
+        stow_pkgs+=("yarn")
+    fi
+
+    if echo "$choices" | grep -q "Google Chrome"; then
+        install_chrome
+    fi
+
     if echo "$choices" | grep -q "Kitty Terminal"; then
-        stow_packages+=("kitty")
+        stow_pkgs+=("kitty")
     fi
 
-    # Tmux + TPM
-    if echo "$choices" | grep -q "Tmux + TPM"; then
-        install_tpm
-        stow_packages+=("tmux")
-    fi
-
-    # GrumpyVim
     if echo "$choices" | grep -q "GrumpyVim"; then
         install_grumpyvim
     fi
 
-    # Awrit
     if echo "$choices" | grep -q "Awrit"; then
         install_awrit
-        stow_packages+=("awrit")
+        stow_pkgs+=("awrit")
     fi
 
-    # vim-kitty-navigator
-    if echo "$choices" | grep -q "vim-kitty-navigator"; then
-        stow_packages+=("vim-kitty-navigator")
+    if echo "$choices" | grep -q "JankyBorders"; then
+        install_jankyborders
+        stow_pkgs+=("jankyborders")
+    fi
+    
+    if echo "$choices" | grep -q "Linting Configs"; then
+        stow_pkgs+=("linting")
     fi
 
-    # Yazi
-    if echo "$choices" | grep -q "Yazi"; then
-        stow_packages+=("yazi")
+    if echo "$choices" | grep -q "Bin Scripts"; then
+        stow_pkgs+=("bin")
     fi
 
-    # Linting
-    if echo "$choices" | grep -q "Linting"; then
-        install_npm_tools
-        stow_packages+=("linting")
+    if echo "$choices" | grep -q "Stow Configs"; then
+        # Stow git by default if Stow Configs is selected
+        stow_pkgs+=("git")
     fi
 
-    # Git config (always stow if we have any selections)
-    stow_packages+=("git")
-
-    # Stow all selected packages
-    if [[ ${#stow_packages[@]} -gt 0 ]]; then
-        stow_dotfiles "${stow_packages[@]}"
-    fi
-
-    # Set Zsh as default
-    if echo "$choices" | grep -q "Set Zsh as Default"; then
-        set_zsh_default
+    # Perform stowing if any packages are added to stow_pkgs
+    if [[ ${#stow_pkgs[@]} -gt 0 ]]; then
+        stow_dotfiles "${stow_pkgs[@]}"
     fi
 
     echo ""
-    gum style \
-        --foreground 212 \
-        --border double \
-        --padding "1 2" \
-        "Installation complete!"
-
-    echo ""
-    info "Next steps:"
-    echo "  1. Log out and log back in for shell changes to take effect"
-    echo "  2. Run 'tmux' and press 'prefix + I' to install tmux plugins"
-    echo "  3. Open nvim to let plugins install automatically"
-    echo ""
+    gum style --foreground 212 "Installation complete!"
 }
 
-# Run main
 main "$@"

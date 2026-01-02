@@ -11,6 +11,9 @@ term xterm-kitty
 #: Ask for confiration when closing main window
 confirm_os_window_close 0
 
+#: No path in menu bar
+shell_integration no-title
+
 #: Allow other plugins to control kitty
 allow_remote_control yes
 listen_on unix:/tmp/mykitty
@@ -53,14 +56,14 @@ initial_window_height 1113
 
 
 # Window logo
-window_logo_path $HOME/.dotfiles/kitty/.config/kitty/ed.png
-window_logo_position bottom-right
-window_logo_alpha 0.02
-window_logo_scale 10
+#window_logo_path $HOME/.dotfiles/kitty/.config/kitty/ed.png
+#window_logo_position bottom-right
+#window_logo_alpha 0.02
+#window_logo_scale 10
 #resize_debounce_time 0.1 0.5
 
 #: Fade inactive window text
-inactive_text_alpha 0.15
+inactive_text_alpha 0.2
 
 # Border color of active window
 active_border_color #f00
