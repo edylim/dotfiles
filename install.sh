@@ -88,10 +88,11 @@ brew_install() {
 cask_install() {
     for pkg in "$@"; do
         # Map cask names to app names for checking
-        local app_name="$pkg"
+        local app_name=""
         case "$pkg" in
             google-chrome) app_name="Google Chrome" ;;
             sf-symbols) app_name="SF Symbols" ;;
+            kitty) app_name="kitty" ;;
             font-*) app_name="" ;;  # Fonts don't have .app
         esac
 
@@ -136,7 +137,7 @@ install_core_packages() {
     info "Installing core packages..."
     case "$OS" in
         macos)
-            brew install git stow curl wget coreutils
+            brew_install git stow curl wget coreutils
             ;;
         arch)
             sudo pacman -S --noconfirm --needed git stow curl wget
@@ -153,7 +154,7 @@ install_cli_tools() {
     # Note: ripgrep, fd, lazygit installed by grumpyvim
     case "$OS" in
         macos)
-            brew install zsh fzf bat htop gh jq tree zoxide yazi mas
+            brew_install zsh fzf bat htop gh jq tree zoxide yazi mas
             ;;
         arch)
             sudo pacman -S --noconfirm --needed zsh fzf bat htop github-cli jq tree zoxide yazi
@@ -175,15 +176,19 @@ install_ai_tools() {
     info "Installing AI CLI tools..."
     case "$OS" in
         macos)
-            brew install gemini-cli
+            brew_install gemini-cli
             # Claude Code CLI
             if ! pkg_installed claude; then
                 npm install -g @anthropic-ai/claude-code
+            else
+                echo -e "  ${DIM}claude already installed${NC}"
             fi
             ;;
         *)
             # Claude Code CLI (requires npm)
-            if command -v npm &> /dev/null; then
+            if pkg_installed claude; then
+                echo -e "  ${DIM}claude already installed${NC}"
+            elif command -v npm &> /dev/null; then
                 npm install -g @anthropic-ai/claude-code
             else
                 warn "npm not found. Install Node.js first for Claude Code CLI."
@@ -197,7 +202,7 @@ install_git_tools() {
     info "Installing git tools..."
     case "$OS" in
         macos)
-            brew install scmpuff onefetch
+            brew_install scmpuff onefetch
             ;;
         arch)
             sudo pacman -S --noconfirm --needed onefetch
@@ -218,7 +223,7 @@ install_media_tools() {
     info "Installing media tools..."
     case "$OS" in
         macos)
-            brew install ffmpeg sevenzip poppler resvg imagemagick
+            brew_install ffmpeg sevenzip poppler resvg imagemagick
             ;;
         arch)
             sudo pacman -S --noconfirm --needed ffmpeg p7zip poppler imagemagick
@@ -285,14 +290,17 @@ install_kitty() {
     info "Installing Kitty terminal..."
     case "$OS" in
         macos)
-            brew install --cask kitty
-            brew install --cask font-symbols-only-nerd-font
+            cask_install kitty font-symbols-only-nerd-font
             ;;
         arch)
             sudo pacman -S --noconfirm --needed kitty
             ;;
         debian)
-            curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
+            if ! pkg_installed kitty; then
+                curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
+            else
+                echo -e "  ${DIM}kitty already installed${NC}"
+            fi
             ;;
     esac
     success "Kitty installed."
@@ -302,7 +310,7 @@ install_chrome() {
     info "Installing Google Chrome..."
     case "$OS" in
         macos)
-            brew install --cask google-chrome
+            cask_install google-chrome
             ;;
         debian)
             if ! pkg_installed google-chrome; then
@@ -310,11 +318,13 @@ install_chrome() {
                 sudo dpkg -i /tmp/chrome.deb || sudo apt-get install -f -y
                 rm /tmp/chrome.deb
             else
-                success "Chrome already installed."
+                echo -e "  ${DIM}google-chrome already installed${NC}"
             fi
             ;;
         arch)
-            if pkg_installed yay; then
+            if pkg_installed google-chrome; then
+                echo -e "  ${DIM}google-chrome already installed${NC}"
+            elif pkg_installed yay; then
                 yay -S --noconfirm google-chrome
             elif pkg_installed paru; then
                 paru -S --noconfirm google-chrome
@@ -323,23 +333,32 @@ install_chrome() {
             fi
             ;;
     esac
+    success "Chrome installed."
 }
 
 install_jankyborders() {
     [[ "$OS" != "macos" ]] && return
     info "Installing JankyBorders..."
-    brew tap FelixKratz/formulae
-    brew install borders
+    if brew_installed borders; then
+        echo -e "  ${DIM}borders already installed${NC}"
+    else
+        brew tap FelixKratz/formulae
+        brew install borders
+    fi
     success "JankyBorders installed."
 }
 
 install_sketchybar() {
     [[ "$OS" != "macos" ]] && return
     info "Installing SketchyBar..."
-    brew tap FelixKratz/formulae
-    brew install sketchybar
-    brew install --cask sf-symbols
-    brew install jq
+    if ! brew_installed sketchybar; then
+        brew tap FelixKratz/formulae
+        brew install sketchybar
+    else
+        echo -e "  ${DIM}sketchybar already installed${NC}"
+    fi
+    cask_install sf-symbols
+    brew_install jq
     success "SketchyBar installed."
 }
 
@@ -360,9 +379,24 @@ install_awrit() {
 install_grumpyvim() {
     info "Installing GrumpyVim..."
     local NVIM_CONFIG_DIR="$HOME/.config/nvim"
+
+    # Handle symlinks (including broken ones)
+    if [[ -L "$NVIM_CONFIG_DIR" ]]; then
+        local link_target
+        link_target=$(readlink "$NVIM_CONFIG_DIR")
+        if [[ -d "$link_target" ]] && [[ -d "$link_target/.git" ]] && git -C "$link_target" remote -v 2>/dev/null | grep -q "grumpyvim"; then
+            info "GrumpyVim already linked."
+            return
+        else
+            warn "Removing existing symlink at $NVIM_CONFIG_DIR..."
+            rm "$NVIM_CONFIG_DIR"
+        fi
+    fi
+
     if [[ -d "$NVIM_CONFIG_DIR" ]]; then
         if [[ -d "$NVIM_CONFIG_DIR/.git" ]] && git -C "$NVIM_CONFIG_DIR" remote -v | grep -q "grumpyvim"; then
-            info "GrumpyVim already cloned."
+            info "GrumpyVim already cloned. Pulling latest..."
+            git -C "$NVIM_CONFIG_DIR" pull --rebase || true
         else
             warn "Existing Neovim config found. Backing up..."
             mv "$NVIM_CONFIG_DIR" "$NVIM_CONFIG_DIR.bak.$(date +%F-%H%M%S)"
@@ -371,6 +405,7 @@ install_grumpyvim() {
     else
         git clone https://github.com/edylim/grumpyvim.git "$NVIM_CONFIG_DIR"
     fi
+
     if [[ -f "$NVIM_CONFIG_DIR/install.sh" ]]; then
         chmod +x "$NVIM_CONFIG_DIR/install.sh"
         bash "$NVIM_CONFIG_DIR/install.sh"
@@ -415,7 +450,49 @@ stow_package() {
         warn "Package directory '$pkg' not found. Skipping."
         return
     fi
-    stow -R "$pkg" 2>/dev/null || stow "$pkg"
+
+    # Check for conflicts with dry run
+    local backup_dir="$HOME/.dotfiles-backup/$(date +%F-%H%M%S)"
+    local conflicts
+    conflicts=$(stow -t "$HOME" -n "$pkg" 2>&1 || true)
+
+    # Handle "existing target" conflicts (real files)
+    local existing_targets
+    existing_targets=$(echo "$conflicts" | grep "existing target .* since" | sed -n 's/.*existing target \(.*\) since.*/\1/p' || true)
+
+    # Handle "not owned by stow" conflicts (symlinks not created by stow)
+    local not_owned
+    not_owned=$(echo "$conflicts" | grep "not owned by stow" | sed -n 's/.*existing target is not owned by stow: \(.*\)/\1/p' || true)
+
+    # Back up and remove conflicting files
+    if [[ -n "$existing_targets" || -n "$not_owned" ]]; then
+        mkdir -p "$backup_dir"
+
+        for target in $existing_targets $not_owned; do
+            [[ -z "$target" ]] && continue
+            local full_path="$HOME/$target"
+
+            if [[ -L "$full_path" ]]; then
+                # It's a symlink - back up what it points to if it exists
+                local link_target
+                link_target=$(readlink "$full_path")
+                if [[ -e "$link_target" ]]; then
+                    echo -e "  ${DIM}Removing symlink $target (-> $link_target)${NC}"
+                fi
+                rm "$full_path"
+            elif [[ -e "$full_path" ]]; then
+                # It's a real file - back it up
+                local target_dir
+                target_dir=$(dirname "$backup_dir/$target")
+                mkdir -p "$target_dir"
+                mv "$full_path" "$backup_dir/$target"
+                echo -e "  ${DIM}Backed up $target${NC}"
+            fi
+        done
+    fi
+
+    # -t $HOME ensures symlinks go to home directory, not parent of dotfiles dir
+    stow -t "$HOME" -R "$pkg" 2>/dev/null || stow -t "$HOME" "$pkg"
     cd - > /dev/null
 }
 
@@ -734,6 +811,13 @@ run_installation() {
     # Stow all selected packages
     if [[ ${#stow_pkgs[@]} -gt 0 ]]; then
         stow_dotfiles "${stow_pkgs[@]}"
+    fi
+
+    # Trust mise config files after stowing
+    if [[ ${MENU_SELECTED[5]} -eq 1 ]] && command -v mise &> /dev/null; then
+        info "Trusting mise config files..."
+        mise trust "$HOME/.config/mise/config.toml" 2>/dev/null || true
+        mise trust "$HOME/.tool-versions" 2>/dev/null || true
     fi
 
     echo ""
