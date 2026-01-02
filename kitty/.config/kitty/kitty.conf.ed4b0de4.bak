@@ -14,15 +14,9 @@ confirm_os_window_close 0
 #: No path in menu bar
 shell_integration no-title
 
-#: Allow other plugins to control kitty (socket-only is more secure)
-allow_remote_control socket-only
+#: Allow other plugins to control kitty
+allow_remote_control yes
 listen_on unix:/tmp/mykitty
-
-#: Scrollback buffer size
-scrollback_lines 10000
-
-#: Notify when long-running commands finish (30+ seconds)
-notify_on_cmd_finish unfocused 30
 
 
 ############
@@ -2559,4 +2553,3 @@ term xterm-kitty
 #: }}}
 
 #: }}}
-map shift+enter send_text all \e\r
