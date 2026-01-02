@@ -4,7 +4,13 @@ Personal dotfiles for setting up a new environment on macOS, Ubuntu/Debian, and 
 
 ## Installation
 
-Fork this repository, then clone and run the install script:
+**One-liner** (clones to `~/.dotfiles` and runs installer):
+
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/edylim/dotfiles/master/install.sh)"
+```
+
+**Or manually:**
 
 ```bash
 git clone https://github.com/edylim/dotfiles.git ~/.dotfiles
