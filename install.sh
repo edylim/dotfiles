@@ -3,33 +3,6 @@
 # Exit on error, undefined vars, and pipe failures
 set -euo pipefail
 
-# --- Bootstrap: Handle curl pipe installation ---
-# Usage: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/edylim/dotfiles/master/install.sh)"
-DOTFILES_REPO="https://github.com/edylim/dotfiles.git"
-DOTFILES_TARGET="$HOME/.dotfiles"
-
-if [[ -z "${BASH_SOURCE[0]:-}" ]] || [[ "${BASH_SOURCE[0]}" == "bash" ]]; then
-    # Running from curl pipe - need to clone first
-    echo "Bootstrapping dotfiles installation..."
-
-    if ! command -v git &> /dev/null; then
-        echo "Error: git is required. Please install git first."
-        exit 1
-    fi
-
-    if [[ -d "$DOTFILES_TARGET" ]]; then
-        echo "Dotfiles already exist at $DOTFILES_TARGET"
-        echo "Updating..."
-        git -C "$DOTFILES_TARGET" pull --rebase || true
-    else
-        echo "Cloning dotfiles to $DOTFILES_TARGET..."
-        git clone "$DOTFILES_REPO" "$DOTFILES_TARGET"
-    fi
-
-    # Re-execute from cloned repo
-    exec "$DOTFILES_TARGET/install.sh"
-fi
-
 # --- Global Variables ---
 DOTFILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 OS=""
@@ -79,6 +52,57 @@ pkg_install() {
 
 pkg_installed() {
     command -v "$1" &> /dev/null
+}
+
+# Check if brew formula is installed
+brew_installed() {
+    brew list --formula "$1" &> /dev/null
+}
+
+# Check if brew cask is installed
+cask_installed() {
+    brew list --cask "$1" &> /dev/null
+}
+
+# Check if macOS app is installed (via any method)
+app_installed() {
+    [[ -d "/Applications/$1.app" ]] || [[ -d "$HOME/Applications/$1.app" ]]
+}
+
+# Install brew packages, skipping already installed
+brew_install() {
+    local to_install=()
+    for pkg in "$@"; do
+        if ! brew_installed "$pkg"; then
+            to_install+=("$pkg")
+        else
+            echo -e "  ${DIM}$pkg already installed${NC}"
+        fi
+    done
+    if [[ ${#to_install[@]} -gt 0 ]]; then
+        brew install "${to_install[@]}"
+    fi
+}
+
+# Install brew casks, skipping already installed (checks /Applications too)
+cask_install() {
+    for pkg in "$@"; do
+        # Map cask names to app names for checking
+        local app_name="$pkg"
+        case "$pkg" in
+            google-chrome) app_name="Google Chrome" ;;
+            sf-symbols) app_name="SF Symbols" ;;
+            font-*) app_name="" ;;  # Fonts don't have .app
+        esac
+
+        if [[ -n "$app_name" ]] && app_installed "$app_name"; then
+            echo -e "  ${DIM}$pkg already installed${NC}"
+        elif cask_installed "$pkg"; then
+            echo -e "  ${DIM}$pkg already installed${NC}"
+        else
+            brew install --cask "$pkg"
+        fi
+    done
 }
 
 # --- Package Manager Setup ---
