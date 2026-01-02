@@ -5,6 +5,8 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
+echo -ne "\e]0;🐈\a"
+
 # Source PreztoV
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
@@ -29,11 +31,19 @@ export CLICOLOR=1
 export GREP_COLOR="00;38;5;61"
 export GREP_COLORS="00;38;5;61"
 
-# Dir colors
-eval $(gdircolors ~/.dircolors)
+# Dir colors (gdircolors on macOS via coreutils, dircolors on Linux)
+if [[ -f ~/.dircolors ]]; then
+  if command -v gdircolors &> /dev/null; then
+    eval $(gdircolors ~/.dircolors)
+  elif command -v dircolors &> /dev/null; then
+    eval $(dircolors ~/.dircolors)
+  fi
+fi
 
 # SCMPuff
-eval "$(scmpuff init -s)"
+if command -v scmpuff &> /dev/null; then
+  eval "$(scmpuff init -s)"
+fi
 
 export MUSIC_APP="Spotify"
 
@@ -42,8 +52,8 @@ export MUSIC_APP="Spotify"
 ##################
 setopt hist_ignore_all_dups inc_append_history
 HISTFILE=~/.histfile
-HISTSIZE=4096
-SAVEHIST=4096
+HISTSIZE=10000
+SAVEHIST=10000
 
 # Beep on errors and notify on background task completion
 setopt beep nomatch notify
@@ -55,9 +65,7 @@ zstyle :compinstall filename '~/.zshrc'
 # load our own completion functions
 fpath=(~/.zsh/completion /usr/local/share/zsh/site-functions $fpath)
 
-# completion
-autoload -U compinit
-compinit
+# Note: compinit is handled by Prezto's completion module
 
 ###################
 # TERMINAL SETTINGS
@@ -80,8 +88,8 @@ bindkey "^Y" accept-and-hold
 bindkey "^N" insert-last-word
 bindkey -s "^T" "^[Isudo ^[A" # "t" for "toughguy"
 
-# Remove aliases
-unalias gls #git log conflicts with dircolors gls
+# Remove aliases (gls alias from git conflicts with coreutils gls)
+unalias gls 2>/dev/null
 
 # Load other program settings
 # aliases
@@ -97,8 +105,8 @@ unalias gls #git log conflicts with dircolors gls
 # fi
 
 # asdf
-export ASDF_DIR="/Users/ed/.asdf"
-. "$HOME/.asdf/asdf.sh"#
+export ASDF_DIR="$HOME/.asdf"
+[[ -f "$HOME/.asdf/asdf.sh" ]] && . "$HOME/.asdf/asdf.sh"
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
 [[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
@@ -109,27 +117,46 @@ if [[ "$(uname)" == "Darwin" ]]; then
 fi
 
 # awrit
-export PATH="/Users/ed/.local/bin:$PATH"
+export PATH="$HOME/.local/bin:$PATH"
 
 # zoxide
-eval "$(zoxide init zsh)"
+if command -v zoxide &> /dev/null; then
+  eval "$(zoxide init zsh)"
+fi
+
+# fzf - fuzzy finder (--zsh requires fzf 0.48.0+, fallback to sourcing script)
+if command -v fzf &> /dev/null; then
+  if fzf --zsh &> /dev/null; then
+    source <(fzf --zsh)
+  elif [[ -f ~/.fzf.zsh ]]; then
+    source ~/.fzf.zsh
+  elif [[ -f /usr/share/fzf/key-bindings.zsh ]]; then
+    source /usr/share/fzf/key-bindings.zsh
+    [[ -f /usr/share/fzf/completion.zsh ]] && source /usr/share/fzf/completion.zsh
+  fi
+fi
+
+# Kitty ssh kitten - copies terminfo to remote hosts
+[ "$TERM" = "xterm-kitty" ] && alias ssh="kitty +kitten ssh"
 
 # onefetch
 # git repository greeter
-last_repository=
-check_directory_for_new_repository() {
- current_repository=$(git rev-parse --show-toplevel 2> /dev/null)
- 
- if [ "$current_repository" ] && \
-    [ "$current_repository" != "$last_repository" ]; then
-  onefetch
- fi
- last_repository=$current_repository
-}
-function cd {
- builtin cd "$@"
- check_directory_for_new_repository
-}
+if command -v onefetch &> /dev/null; then
+  last_repository=
+  check_directory_for_new_repository() {
+    current_repository=$(git rev-parse --show-toplevel 2> /dev/null)
+
+    if [ "$current_repository" ] && \
+       [ "$current_repository" != "$last_repository" ]; then
+      onefetch
+    fi
+    last_repository=$current_repository
+  }
+  function cd {
+    builtin cd "$@"
+    check_directory_for_new_repository
+  }
+fi
 
 # optional, greet also when opening shell directly in repository directory
 # adds time to startup
