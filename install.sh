@@ -13,6 +13,9 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+DIM='\033[2m'
 NC='\033[0m' # No Color
 
 info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
@@ -26,11 +29,9 @@ detect_os() {
         OS="macos"
         PKG_MANAGER="brew"
     elif [[ -f /etc/arch-release ]]; then
-        # Arch Linux or Omarchy
         OS="arch"
         PKG_MANAGER="pacman"
     elif [[ -f /etc/debian_version ]]; then
-        # Debian/Ubuntu
         OS="debian"
         PKG_MANAGER="apt"
     else
@@ -53,30 +54,6 @@ pkg_installed() {
     command -v "$1" &> /dev/null
 }
 
-# --- Gum Installation ---
-install_gum() {
-    if pkg_installed gum; then
-        return 0
-    fi
-
-    info "Installing gum (required for interactive menu)..."
-    case "$PKG_MANAGER" in
-        brew)
-            brew install gum
-            ;;
-        pacman)
-            sudo pacman -S --noconfirm gum
-            ;;
-        apt)
-            sudo mkdir -p /etc/apt/keyrings
-            curl -fsSL https://repo.charm.sh/apt/gpg.key | sudo gpg --dearmor -o /etc/apt/keyrings/charm.gpg 2>/dev/null || true
-            echo "deb [signed-by=/etc/apt/keyrings/charm.gpg] https://repo.charm.sh/apt/ * *" | sudo tee /etc/apt/sources.list.d/charm.list > /dev/null
-            sudo apt-get update
-            sudo apt-get install -y gum
-            ;;
-    esac
-}
-
 # --- Package Manager Setup ---
 setup_package_manager() {
     info "Setting up package manager..."
@@ -91,10 +68,8 @@ setup_package_manager() {
                     eval "$(/usr/local/bin/brew shellenv)"
                 fi
             fi
-            # brew update # Optional, can be slow
             ;;
         pacman)
-            # sudo pacman -Syu --noconfirm # Optional
             ;;
         apt)
             sudo apt-get update
@@ -102,13 +77,15 @@ setup_package_manager() {
     esac
 }
 
-# --- Core Package Installation ---
-install_core_packages() {
-    info "Installing core packages (git, stow, curl)..."
+# =============================================================================
+# INSTALLATION FUNCTIONS
+# =============================================================================
 
+install_core_packages() {
+    info "Installing core packages..."
     case "$OS" in
         macos)
-            brew install git stow curl wget
+            brew install git stow curl wget coreutils
             ;;
         arch)
             sudo pacman -S --noconfirm --needed git stow curl wget
@@ -120,11 +97,90 @@ install_core_packages() {
     success "Core packages installed."
 }
 
-# --- Install Mise & Runtimes ---
+install_cli_tools() {
+    info "Installing CLI tools..."
+    # Note: ripgrep, fd, lazygit installed by grumpyvim
+    case "$OS" in
+        macos)
+            brew install zsh fzf bat htop gh jq tree zoxide yazi mas
+            ;;
+        arch)
+            sudo pacman -S --noconfirm --needed zsh fzf bat htop github-cli jq tree zoxide yazi
+            ;;
+        debian)
+            sudo apt-get install -y zsh fzf bat htop gh jq tree
+            if ! pkg_installed zoxide; then
+                curl -sS https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | bash
+            fi
+            if ! pkg_installed yazi; then
+                cargo install --locked yazi-fm yazi-cli 2>/dev/null || warn "yazi requires cargo. Install manually."
+            fi
+            ;;
+    esac
+    success "CLI tools installed."
+}
+
+install_ai_tools() {
+    info "Installing AI CLI tools..."
+    case "$OS" in
+        macos)
+            brew install gemini-cli
+            # Claude Code CLI
+            if ! pkg_installed claude; then
+                npm install -g @anthropic-ai/claude-code
+            fi
+            ;;
+        *)
+            # Claude Code CLI (requires npm)
+            if command -v npm &> /dev/null; then
+                npm install -g @anthropic-ai/claude-code
+            else
+                warn "npm not found. Install Node.js first for Claude Code CLI."
+            fi
+            ;;
+    esac
+    success "AI tools installed."
+}
+
+install_git_tools() {
+    info "Installing git tools..."
+    case "$OS" in
+        macos)
+            brew install scmpuff onefetch
+            ;;
+        arch)
+            sudo pacman -S --noconfirm --needed onefetch
+            # scmpuff may need AUR
+            if pkg_installed yay; then
+                yay -S --noconfirm scmpuff
+            fi
+            ;;
+        debian)
+            # scmpuff and onefetch need manual install
+            warn "scmpuff/onefetch not in apt repos. Install manually if needed."
+            ;;
+    esac
+    success "Git tools installed."
+}
+
+install_media_tools() {
+    info "Installing media tools..."
+    case "$OS" in
+        macos)
+            brew install ffmpeg sevenzip poppler resvg imagemagick
+            ;;
+        arch)
+            sudo pacman -S --noconfirm --needed ffmpeg p7zip poppler imagemagick
+            ;;
+        debian)
+            sudo apt-get install -y ffmpeg p7zip-full poppler-utils imagemagick
+            ;;
+    esac
+    success "Media tools installed."
+}
+
 install_mise() {
     info "Installing Mise (Runtime Manager)..."
-    
-    # Install Mise
     case "$OS" in
         macos)
             if ! pkg_installed mise; then
@@ -133,60 +189,40 @@ install_mise() {
             ;;
         arch)
             if ! pkg_installed mise; then
-                sudo pacman -S --noconfirm --needed mise || \
-                # Fallback to AUR or manual if not in repo (it is in Extra usually)
-                curl https://mise.run | sh
+                sudo pacman -S --noconfirm --needed mise || curl https://mise.run | sh
             fi
             ;;
         debian)
             if ! pkg_installed mise; then
-                # Debian doesn't have mise in standard repos usually
                 curl https://mise.run | sh
-                # Add to path for this session
                 export PATH="$HOME/.local/bin:$PATH"
             fi
             ;;
     esac
-
-    # Activate mise for this script session
-    eval "$(mise activate bash)"
+    eval "$(mise activate bash)" 2>/dev/null || true
     success "Mise installed."
 }
 
 configure_mise_runtimes() {
-    info "Configuring Runtimes via Mise (Node.js, Python)..."
-    
-    # Ensure mise is active
+    info "Configuring runtimes via Mise..."
     if ! command -v mise &> /dev/null; then
-        # Try finding it if not in PATH yet
         if [[ -f "$HOME/.local/bin/mise" ]]; then
             export PATH="$HOME/.local/bin:$PATH"
         fi
-        eval "$(mise activate bash)"
+        eval "$(mise activate bash)" 2>/dev/null || true
     fi
-
-    # Install Node.js
-    info "Installing Node.js (latest)..."
     mise use --global node@latest
-    
-    # Install Python
-    info "Installing Python (latest)..."
     mise use --global python@latest
-
     success "Runtimes configured."
 }
 
-# --- Install Yarn ---
 install_yarn() {
     info "Installing Yarn..."
-    
-    # Ensure we have node
     if ! command -v node &> /dev/null; then
         warn "Node.js not found. Installing via mise..."
         install_mise
         configure_mise_runtimes
     fi
-
     if ! pkg_installed yarn; then
         npm install -g yarn || warn "Failed to install yarn via npm"
     else
@@ -194,7 +230,23 @@ install_yarn() {
     fi
 }
 
-# --- Install Chrome ---
+install_kitty() {
+    info "Installing Kitty terminal..."
+    case "$OS" in
+        macos)
+            brew install --cask kitty
+            brew install --cask font-symbols-only-nerd-font
+            ;;
+        arch)
+            sudo pacman -S --noconfirm --needed kitty
+            ;;
+        debian)
+            curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
+            ;;
+    esac
+    success "Kitty installed."
+}
+
 install_chrome() {
     info "Installing Google Chrome..."
     case "$OS" in
@@ -211,57 +263,55 @@ install_chrome() {
             fi
             ;;
         arch)
-            # Check for yay or paru
             if pkg_installed yay; then
                 yay -S --noconfirm google-chrome
             elif pkg_installed paru; then
                 paru -S --noconfirm google-chrome
             else
-                warn "AUR helper (yay/paru) not found. Skipping Chrome installation on Arch."
-                warn "Install manually or install 'yay' first."
+                warn "AUR helper not found. Skipping Chrome."
             fi
             ;;
     esac
 }
 
-# --- Install JankyBorders (macOS only) ---
 install_jankyborders() {
-    if [[ "$OS" != "macos" ]]; then
-        return
-    fi
+    [[ "$OS" != "macos" ]] && return
     info "Installing JankyBorders..."
     brew tap FelixKratz/formulae
     brew install borders
+    success "JankyBorders installed."
 }
 
-# --- Install Awrit ---
+install_sketchybar() {
+    [[ "$OS" != "macos" ]] && return
+    info "Installing SketchyBar..."
+    brew tap FelixKratz/formulae
+    brew install sketchybar
+    brew install --cask sf-symbols
+    brew install jq
+    success "SketchyBar installed."
+}
+
 install_awrit() {
     info "Installing Awrit..."
     local AW_INSTALL_DIR="$HOME/.awrit"
-
     if [[ -f "$AW_INSTALL_DIR/awrit" ]]; then
         success "Awrit already installed."
     else
         curl -fsS https://chase.github.io/awrit/get | DOWNLOAD_TO="$AW_INSTALL_DIR" bash
         success "Awrit downloaded."
     fi
-
-    # Remove default kitty.css so stow can create symlink
-    # We copied existing config to awrit/.awrit/dist/kitty.css
-    # Stow will handle the linking if the target file doesn't exist or is a link
     if [[ -f "$AW_INSTALL_DIR/dist/kitty.css" && ! -L "$AW_INSTALL_DIR/dist/kitty.css" ]]; then
          rm "$AW_INSTALL_DIR/dist/kitty.css"
     fi
 }
 
-# --- Install GrumpyVim ---
 install_grumpyvim() {
     info "Installing GrumpyVim..."
     local NVIM_CONFIG_DIR="$HOME/.config/nvim"
-
     if [[ -d "$NVIM_CONFIG_DIR" ]]; then
         if [[ -d "$NVIM_CONFIG_DIR/.git" ]] && git -C "$NVIM_CONFIG_DIR" remote -v | grep -q "grumpyvim"; then
-            info "GrumpyVim already cloned. Running its installer..."
+            info "GrumpyVim already cloned."
         else
             warn "Existing Neovim config found. Backing up..."
             mv "$NVIM_CONFIG_DIR" "$NVIM_CONFIG_DIR.bak.$(date +%F-%H%M%S)"
@@ -270,30 +320,50 @@ install_grumpyvim() {
     else
         git clone https://github.com/edylim/grumpyvim.git "$NVIM_CONFIG_DIR"
     fi
-
-    # Execute GrumpyVim's own install script
     if [[ -f "$NVIM_CONFIG_DIR/install.sh" ]]; then
-        info "Executing GrumpyVim install script..."
         chmod +x "$NVIM_CONFIG_DIR/install.sh"
         bash "$NVIM_CONFIG_DIR/install.sh"
     fi
-    
     success "GrumpyVim installed."
+}
+
+install_prezto() {
+    info "Installing Prezto..."
+    if [[ -d "${ZDOTDIR:-$HOME}/.zprezto" ]]; then
+        success "Prezto already installed."
+    else
+        git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$HOME}/.zprezto"
+        success "Prezto installed."
+    fi
+}
+
+set_zsh_default() {
+    info "Setting Zsh as default shell..."
+    local ZSH_PATH
+    ZSH_PATH=$(which zsh)
+    if [[ "$SHELL" == "$ZSH_PATH" ]]; then
+        success "Zsh is already the default shell."
+        return
+    fi
+    if ! grep -q "$ZSH_PATH" /etc/shells; then
+        echo "$ZSH_PATH" | sudo tee -a /etc/shells > /dev/null
+    fi
+    if chsh -s "$ZSH_PATH"; then
+        success "Default shell changed to Zsh."
+    else
+        warn "Could not change default shell. Run manually: chsh -s $ZSH_PATH"
+    fi
 }
 
 # --- Stow Dotfiles ---
 stow_package() {
     local pkg="$1"
     info "Stowing $pkg..."
-    # Ensure dotfiles dir is where we expect
     cd "$DOTFILES_DIR"
-    
-    # Check if package directory exists
     if [[ ! -d "$pkg" ]]; then
-        warn "Package directory '$pkg' not found in $DOTFILES_DIR. Skipping."
+        warn "Package directory '$pkg' not found. Skipping."
         return
     fi
-
     stow -R "$pkg" 2>/dev/null || stow "$pkg"
     cd - > /dev/null
 }
@@ -307,151 +377,328 @@ stow_dotfiles() {
     success "Dotfiles stowed."
 }
 
-# --- Install Prezto ---
-install_prezto() {
-    info "Installing Prezto..."
-    if [[ -d "${ZDOTDIR:-$HOME}/.zprezto" ]]; then
-        success "Prezto already installed."
-    else
-        git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$HOME}/.zprezto"
-        success "Prezto installed."
-    fi
-}
+# =============================================================================
+# INTERACTIVE MENU SYSTEM
+# =============================================================================
 
-# --- Set Zsh as Default Shell ---
-set_zsh_default() {
-    info "Setting Zsh as default shell..."
-    local ZSH_PATH
-    ZSH_PATH=$(which zsh)
+declare -a MENU_ITEMS
+declare -a MENU_SELECTED
+declare -a MENU_MACOS_ONLY
+MENU_CURSOR=0
 
-    if [[ "$SHELL" == "$ZSH_PATH" ]]; then
-        success "Zsh is already the default shell."
-        return
-    fi
-
-    # Add zsh to /etc/shells if not present
-    if ! grep -q "$ZSH_PATH" /etc/shells; then
-        echo "$ZSH_PATH" | sudo tee -a /etc/shells > /dev/null
-    fi
-
-    if chsh -s "$ZSH_PATH"; then
-        success "Default shell changed to Zsh."
-    else
-        warn "Could not change default shell. Run manually: chsh -s $ZSH_PATH"
-    fi
-}
-
-# --- Main Interactive Menu ---
-main() {
-    detect_os
-    setup_package_manager
-    install_gum
-
-    echo ""
-    gum style \
-        --border normal \
-        --margin "1" \
-        --padding "1 2" \
-        --border-foreground 212 \
-        "Dotfiles Installer (macOS, Ubuntu, Omarchy)"
-
-    # Define available packages
-    local ALL_PACKAGES=(
-        "Core (Git, Stow, Curl)" 
-        "Zsh & Prezto"
-        "Mise & Runtimes (Node, Python)" 
-        "Yarn" 
-        "Google Chrome" 
+init_menu() {
+    MENU_ITEMS=(
+        "Core Packages (git, stow, curl, wget)"
+        "CLI Tools (zsh, fzf, bat, zoxide, yazi, htop, gh)"
+        "Git Tools (scmpuff, onefetch)"
+        "Media Tools (ffmpeg, imagemagick, poppler)"
+        "AI Tools (claude, gemini-cli)"
+        "Mise & Runtimes (Node.js, Python)"
+        "Yarn"
         "Kitty Terminal"
-        "GrumpyVim (Neovim)" 
-        "Awrit" 
-        "JankyBorders (macOS)" 
+        "Google Chrome"
+        "GrumpyVim (Neovim)"
+        "Zsh & Prezto"
+        "Awrit"
+        "JankyBorders (macOS)"
+        "SketchyBar (macOS)"
         "Linting Configs"
         "Bin Scripts"
-        "Stow Configs"
+        "Git Config"
     )
 
-    # Join array with commas for default selection
-    # Use a subshell or temporary IFS change to avoid affecting subsequent commands
-    local ALL_SELECTED
-    ALL_SELECTED=$(IFS=, ; echo "${ALL_PACKAGES[*]}")
-    
-    local choices
-    choices=$(gum choose --no-limit --height 15 --selected="$ALL_SELECTED" "${ALL_PACKAGES[@]}")
+    # Track which items are macOS only (indices: 12=JankyBorders, 13=SketchyBar)
+    MENU_MACOS_ONLY=(0 0 0 0 0 0 0 0 0 0 0 0 1 1 0 0 0)
 
-    if [[ -z "$choices" ]]; then
-        warn "No selections made. Exiting."
-        exit 0
-    fi
+    # All selected by default
+    for i in "${!MENU_ITEMS[@]}"; do
+        MENU_SELECTED[$i]=1
+    done
+}
 
+draw_menu() {
+    local start_row=$1
+    local total=${#MENU_ITEMS[@]}
+
+    # Move cursor to start position
+    tput cup $start_row 0
+
+    for i in "${!MENU_ITEMS[@]}"; do
+        local item="${MENU_ITEMS[$i]}"
+        local selected="${MENU_SELECTED[$i]}"
+        local is_macos_only="${MENU_MACOS_ONLY[$i]}"
+
+        # Skip macOS-only items on other platforms
+        if [[ "$is_macos_only" -eq 1 && "$OS" != "macos" ]]; then
+            continue
+        fi
+
+        # Clear line
+        tput el
+
+        # Cursor indicator
+        if [[ $i -eq $MENU_CURSOR ]]; then
+            echo -en "${CYAN}>${NC} "
+        else
+            echo -n "  "
+        fi
+
+        # Checkbox
+        if [[ $selected -eq 1 ]]; then
+            echo -en "${GREEN}[x]${NC} "
+        else
+            echo -en "${DIM}[ ]${NC} "
+        fi
+
+        # Item text
+        if [[ $i -eq $MENU_CURSOR ]]; then
+            echo -e "${BOLD}${item}${NC}"
+        else
+            echo -e "${item}"
+        fi
+    done
+
+    # Draw footer
     echo ""
-    gum style --foreground 212 "Starting installation..."
+    tput el
+    echo -e "${DIM}─────────────────────────────────────────────────────${NC}"
+    tput el
+    echo -e "  ${BOLD}[space]${NC} toggle  ${BOLD}[a]${NC}ll  ${BOLD}[n]${NC}one  ${BOLD}[i]${NC}nstall  ${BOLD}[q]${NC}uit"
+}
 
+get_visible_items() {
+    local -a visible=()
+    for i in "${!MENU_ITEMS[@]}"; do
+        local is_macos_only="${MENU_MACOS_ONLY[$i]}"
+        if [[ "$is_macos_only" -eq 1 && "$OS" != "macos" ]]; then
+            continue
+        fi
+        visible+=($i)
+    done
+    echo "${visible[@]}"
+}
+
+run_menu() {
+    local start_row=5
+
+    # Get visible item indices
+    local -a visible_indices=($(get_visible_items))
+    local visible_count=${#visible_indices[@]}
+    local visible_cursor=0
+    MENU_CURSOR=${visible_indices[0]}
+
+    # Hide cursor
+    tput civis
+
+    # Clear screen and draw header
+    clear
+    echo ""
+    echo -e "  ${BOLD}${CYAN}Dotfiles Installer${NC}"
+    echo -e "  ${DIM}$OS ($(uname -m))${NC}"
+    echo ""
+
+    draw_menu $start_row
+
+    # Input loop
+    while true; do
+        # Read single keypress
+        IFS= read -rsn1 key
+
+        case "$key" in
+            # Arrow keys (escape sequences)
+            $'\x1b')
+                read -rsn2 -t 0.1 key
+                case "$key" in
+                    '[A') # Up
+                        if [[ $visible_cursor -gt 0 ]]; then
+                            ((visible_cursor--))
+                            MENU_CURSOR=${visible_indices[$visible_cursor]}
+                        fi
+                        ;;
+                    '[B') # Down
+                        if [[ $visible_cursor -lt $((visible_count - 1)) ]]; then
+                            ((visible_cursor++))
+                            MENU_CURSOR=${visible_indices[$visible_cursor]}
+                        fi
+                        ;;
+                esac
+                ;;
+            # Space or Enter - toggle
+            ' '|'')
+                if [[ ${MENU_SELECTED[$MENU_CURSOR]} -eq 1 ]]; then
+                    MENU_SELECTED[$MENU_CURSOR]=0
+                else
+                    MENU_SELECTED[$MENU_CURSOR]=1
+                fi
+                ;;
+            # Select all
+            'a'|'A')
+                for i in "${visible_indices[@]}"; do
+                    MENU_SELECTED[$i]=1
+                done
+                ;;
+            # Select none
+            'n'|'N')
+                for i in "${visible_indices[@]}"; do
+                    MENU_SELECTED[$i]=0
+                done
+                ;;
+            # Install
+            'i'|'I')
+                tput cnorm  # Show cursor
+                echo ""
+                return 0
+                ;;
+            # Quit
+            'q'|'Q')
+                tput cnorm  # Show cursor
+                echo ""
+                echo -e "${YELLOW}Cancelled.${NC}"
+                exit 0
+                ;;
+            # j/k vim navigation
+            'j')
+                if [[ $visible_cursor -lt $((visible_count - 1)) ]]; then
+                    ((visible_cursor++))
+                    MENU_CURSOR=${visible_indices[$visible_cursor]}
+                fi
+                ;;
+            'k')
+                if [[ $visible_cursor -gt 0 ]]; then
+                    ((visible_cursor--))
+                    MENU_CURSOR=${visible_indices[$visible_cursor]}
+                fi
+                ;;
+        esac
+
+        draw_menu $start_row
+    done
+}
+
+# =============================================================================
+# MAIN INSTALLATION LOGIC
+# =============================================================================
+
+run_installation() {
     local stow_pkgs=()
 
-    if echo "$choices" | grep -q "Core"; then
+    echo ""
+    echo -e "${CYAN}Starting installation...${NC}"
+    echo ""
+
+    # 0: Core Packages
+    if [[ ${MENU_SELECTED[0]} -eq 1 ]]; then
         install_core_packages
     fi
 
-    if echo "$choices" | grep -q "Zsh & Prezto"; then
-        install_prezto
-        set_zsh_default
-        stow_pkgs+=("zsh")
+    # 1: CLI Tools
+    if [[ ${MENU_SELECTED[1]} -eq 1 ]]; then
+        install_cli_tools
     fi
 
-    if echo "$choices" | grep -q "Mise & Runtimes"; then
+    # 2: Git Tools
+    if [[ ${MENU_SELECTED[2]} -eq 1 ]]; then
+        install_git_tools
+    fi
+
+    # 3: Media Tools
+    if [[ ${MENU_SELECTED[3]} -eq 1 ]]; then
+        install_media_tools
+    fi
+
+    # 4: AI Tools
+    if [[ ${MENU_SELECTED[4]} -eq 1 ]]; then
+        install_ai_tools
+    fi
+
+    # 5: Mise & Runtimes
+    if [[ ${MENU_SELECTED[5]} -eq 1 ]]; then
         install_mise
         configure_mise_runtimes
         stow_pkgs+=("mise")
     fi
 
-    if echo "$choices" | grep -q "Yarn"; then
+    # 6: Yarn
+    if [[ ${MENU_SELECTED[6]} -eq 1 ]]; then
         install_yarn
         stow_pkgs+=("yarn")
     fi
 
-    if echo "$choices" | grep -q "Google Chrome"; then
-        install_chrome
-    fi
-
-    if echo "$choices" | grep -q "Kitty Terminal"; then
+    # 7: Kitty Terminal
+    if [[ ${MENU_SELECTED[7]} -eq 1 ]]; then
+        install_kitty
         stow_pkgs+=("kitty")
     fi
 
-    if echo "$choices" | grep -q "GrumpyVim"; then
+    # 8: Google Chrome
+    if [[ ${MENU_SELECTED[8]} -eq 1 ]]; then
+        install_chrome
+    fi
+
+    # 9: GrumpyVim
+    if [[ ${MENU_SELECTED[9]} -eq 1 ]]; then
         install_grumpyvim
     fi
 
-    if echo "$choices" | grep -q "Awrit"; then
+    # 10: Zsh & Prezto
+    if [[ ${MENU_SELECTED[10]} -eq 1 ]]; then
+        install_prezto
+        set_zsh_default
+        stow_pkgs+=("zsh")
+    fi
+
+    # 11: Awrit
+    if [[ ${MENU_SELECTED[11]} -eq 1 ]]; then
         install_awrit
         stow_pkgs+=("awrit")
     fi
 
-    if echo "$choices" | grep -q "JankyBorders"; then
+    # 12: JankyBorders (macOS)
+    if [[ ${MENU_SELECTED[12]} -eq 1 && "$OS" == "macos" ]]; then
         install_jankyborders
         stow_pkgs+=("jankyborders")
     fi
-    
-    if echo "$choices" | grep -q "Linting Configs"; then
+
+    # 13: SketchyBar (macOS)
+    if [[ ${MENU_SELECTED[13]} -eq 1 && "$OS" == "macos" ]]; then
+        install_sketchybar
+        stow_pkgs+=("sketchybar")
+    fi
+
+    # 14: Linting Configs
+    if [[ ${MENU_SELECTED[14]} -eq 1 ]]; then
         stow_pkgs+=("linting")
     fi
 
-    if echo "$choices" | grep -q "Bin Scripts"; then
+    # 15: Bin Scripts
+    if [[ ${MENU_SELECTED[15]} -eq 1 ]]; then
         stow_pkgs+=("bin")
     fi
 
-    if echo "$choices" | grep -q "Stow Configs"; then
-        # Stow git by default if Stow Configs is selected
+    # 16: Git Config
+    if [[ ${MENU_SELECTED[16]} -eq 1 ]]; then
         stow_pkgs+=("git")
     fi
 
-    # Perform stowing if any packages are added to stow_pkgs
+    # Stow all selected packages
     if [[ ${#stow_pkgs[@]} -gt 0 ]]; then
         stow_dotfiles "${stow_pkgs[@]}"
     fi
 
     echo ""
-    gum style --foreground 212 "Installation complete!"
+    echo -e "${GREEN}${BOLD}Installation complete!${NC}"
+}
+
+# =============================================================================
+# MAIN
+# =============================================================================
+
+main() {
+    detect_os
+    setup_package_manager
+    init_menu
+    run_menu
+    run_installation
 }
 
 main "$@"
