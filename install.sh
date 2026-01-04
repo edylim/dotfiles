@@ -3,6 +3,27 @@
 # Exit on error, undefined vars, and pipe failures
 set -euo pipefail
 
+# --- Bootstrap: Handle curl pipe installation ---
+# Usage: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/edylim/dotfiles/master/install.sh)"
+DOTFILES_REPO="https://github.com/edylim/dotfiles.git"
+DOTFILES_TARGET="$HOME/.dotfiles"
+
+if [[ -z "${BASH_SOURCE[0]:-}" ]] || [[ "${BASH_SOURCE[0]}" == "bash" ]]; then
+    echo "Bootstrapping dotfiles installation..."
+    if ! command -v git &> /dev/null; then
+        echo "Error: git is required. Please install git first."
+        exit 1
+    fi
+    if [[ -d "$DOTFILES_TARGET" ]]; then
+        echo "Updating existing dotfiles..."
+        git -C "$DOTFILES_TARGET" pull --rebase || true
+    else
+        echo "Cloning dotfiles to $DOTFILES_TARGET..."
+        git clone "$DOTFILES_REPO" "$DOTFILES_TARGET"
+    fi
+    exec "$DOTFILES_TARGET/install.sh"
+fi
+
 # --- Global Variables ---
 DOTFILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 OS=""
@@ -255,12 +276,15 @@ install_mise() {
             fi
             ;;
     esac
+    mkdir -p "$HOME/.config/mise"
     eval "$(mise activate bash)" 2>/dev/null || true
     success "Mise installed."
 }
 
 configure_mise_runtimes() {
     info "Configuring runtimes via Mise..."
+    # Ensure mise config directory exists before any mise commands
+    mkdir -p "$HOME/.config/mise"
     if ! command -v mise &> /dev/null; then
         if [[ -f "$HOME/.local/bin/mise" ]]; then
             export PATH="$HOME/.local/bin:$PATH"
