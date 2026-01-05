@@ -5,7 +5,7 @@ set -euo pipefail
 
 # --- Bootstrap: Handle curl pipe installation ---
 # Usage: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/edylim/dotfiles/master/install.sh)"
-DOTFILES_REPO="git@github.com:edylim/dotfiles.git"
+DOTFILES_REPO="https://github.com/edylim/dotfiles.git"
 DOTFILES_TARGET="$HOME/.dotfiles"
 
 if [[ -z "${BASH_SOURCE[0]:-}" ]] || [[ "${BASH_SOURCE[0]}" == "bash" ]]; then
