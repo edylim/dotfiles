@@ -1,62 +1,110 @@
 #!/bin/bash
 # find-new-dotfiles - discover and add untracked dotfiles interactively
+# shellcheck disable=SC2034  # Some variables are set for state tracking
+# shellcheck disable=SC1091  # Source path is dynamic, resolved at runtime
 
 set -euo pipefail
 
+# --- Global Variables ---
 DOTFILES_DIR="${DOTFILES_DIR:-$HOME/.dotfiles}"
 
-# Source common library if available, otherwise define colors locally
+# Source common library (required)
 if [[ -f "$DOTFILES_DIR/lib/common.sh" ]]; then
     source "$DOTFILES_DIR/lib/common.sh"
 else
-    # Fallback color definitions
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[0;33m'
-    CYAN='\033[0;36m'
-    BOLD='\033[1m'
-    DIM='\033[2m'
-    NC='\033[0m'
-    _log_warn() { echo -e "${YELLOW}[WARN]${NC} $1" >&2; }
-    _log_error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
+    echo "Error: common.sh not found at $DOTFILES_DIR/lib/common.sh" >&2
+    exit 1
 fi
 
-# Cleanup on exit
+# XDG directories
+XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+
+# State tracking
+declare -a ADDED_ITEMS=()
+declare -a SKIPPED_ITEMS=()
+declare -a IGNORED_ITEMS=()
+
+# OS detection
+OS=""
+ARCH=""
+PKG_MANAGER=""
+
+# --- Cleanup and signal handling ---
 cleanup() {
-    tput cnorm 2>/dev/null || true  # Restore cursor
+    restore_cursor
+
+    # Show summary if we processed anything
+    if [[ ${#ADDED_ITEMS[@]} -gt 0 ]] || [[ ${#IGNORED_ITEMS[@]} -gt 0 ]]; then
+        echo ""
+        if [[ ${#ADDED_ITEMS[@]} -gt 0 ]]; then
+            echo -e "${GREEN}Added to dotfiles:${NC}"
+            for item in "${ADDED_ITEMS[@]}"; do
+                echo -e "  ${GREEN}✓${NC} $item"
+            done
+        fi
+        if [[ ${#IGNORED_ITEMS[@]} -gt 0 ]]; then
+            echo -e "${YELLOW}Added to ignore list:${NC}"
+            for item in "${IGNORED_ITEMS[@]}"; do
+                echo -e "  ${DIM}-${NC} $item"
+            done
+        fi
+    fi
 }
 trap cleanup EXIT INT TERM
 
+# --- Logging (use common.sh functions with nicer names) ---
+info()    { _log_info "$1"; }
+success() { _log_success "$1"; }
+warn()    { _log_warn "$1"; }
+error()   { _log_error "$1"; exit 1; }
+
+# =============================================================================
+# IGNORE PATTERNS
+# =============================================================================
+
 # Patterns to ignore (caches, generated, ephemeral)
-# Using extended regex - escape special chars properly
 IGNORE_PATTERNS=(
+    # Caches
     'cache|Cache'
+    'GPUCache|ShaderCache|DawnCache|Code Cache'
+
+    # Logs and history
     'logs?|Log|\.log$'
+    '\.lesshst|\.viminfo|\.histfile'
+    '\.zsh_history|\.bash_history|\.python_history|\.node_repl_history'
+    '\.mysql_history|\.tig_history|\.fasd'
+    '_history$'
+
+    # System/app junk
     'node_modules|__pycache__'
     '\.Trash|Crash Reports'
-    'GPUCache|ShaderCache|DawnCache|Code Cache'
     'blob_storage|Session Storage|Local Storage|IndexedDB|databases'
     '\.DS_Store|Cookies|Preferences\.plist'
     'WebKit|Crashpad|Network'
     'component_crx_cache|BrowserMetrics|SafetyTips'
     'ZoomAutoUpdater|Electron|\.Spotlight'
     '\.CFUserTextEncoding|\.cups'
+
+    # This repo
     '\.dotfiles$|\.dotfiles-backup'
-    '\.lesshst|\.viminfo|\.histfile'
-    '\.zsh_history|\.bash_history|\.python_history|\.node_repl_history'
-    '\.mysql_history|\.tig_history|\.fasd'
+
+    # Other tools we don't want to track
     '\.wget-hsts|\.hushlogin'
     'configstore|\.npm|\.pki|\.oracle_jre_usage'
     '\.asdf|\.bun|\.docker|\.aws|\.azure|\.kube'
     '1Password|\.zcompdump|\.zsh_sessions'
-    '_history$'
 )
 
 # Build combined pattern
 IGNORE_PATTERN=$(IFS='|'; echo "${IGNORE_PATTERNS[*]}")
 
+# =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
 # Get managed .config directories from stow packages
 get_managed_configs() {
+    local pkg
     for pkg in "$DOTFILES_DIR"/*/; do
         if [[ -d "$pkg/.config" ]]; then
             ls -1 "$pkg/.config" 2>/dev/null || true
@@ -66,19 +114,22 @@ get_managed_configs() {
 
 # Get managed home dotfiles from stow packages
 get_managed_home() {
+    local pkg
     for pkg in "$DOTFILES_DIR"/*/; do
-        ls -1A "$pkg" 2>/dev/null | grep '^\.' || true
-    done | sort -u
+        # Use glob instead of ls | grep for dotfiles
+        for f in "$pkg".*; do
+            [[ -e "$f" ]] && basename "$f"
+        done
+    done 2>/dev/null | sort -u
 }
 
 # Check if item should be ignored
 should_ignore() {
     local item="$1"
-    # Use grep with fixed pattern matching for safety
     echo "$item" | grep -Eq "$IGNORE_PATTERN"
 }
 
-# Get file/dir info
+# Get file/dir info (cross-platform)
 get_info() {
     local path="$1"
     local age size type
@@ -88,16 +139,39 @@ get_info() {
         size=$(du -sh "$path" 2>/dev/null | cut -f1 || echo "?")
     else
         type="file"
+        # shellcheck disable=SC2012  # ls for human-readable size display
         size=$(ls -lh "$path" 2>/dev/null | awk '{print $5}' || echo "?")
     fi
 
-    # macOS uses -f for format, Linux uses -c
-    if [[ "$(uname)" == "Darwin" ]]; then
+    # Cross-platform stat
+    if [[ "$OS" == "macos" ]]; then
         age=$(stat -f "%Sm" -t "%Y-%m-%d" "$path" 2>/dev/null || echo "unknown")
     else
         age=$(stat -c "%y" "$path" 2>/dev/null | cut -d' ' -f1 || echo "unknown")
     fi
+
     echo "$type|$size|$age"
+}
+
+# Load user ignore list
+load_ignores() {
+    if [[ -f "$DOTFILES_DIR/.dotfiles-ignore" ]]; then
+        cat "$DOTFILES_DIR/.dotfiles-ignore"
+    fi
+}
+
+# =============================================================================
+# DOTFILE MANAGEMENT
+# =============================================================================
+
+# Validate package name
+validate_package_name() {
+    local name="$1"
+    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        warn "Invalid package name. Use only letters, numbers, dash, underscore."
+        return 1
+    fi
+    return 0
 }
 
 # Add dotfile to stow package
@@ -109,68 +183,73 @@ add_to_dotfiles() {
     echo -e "\n${CYAN}Adding: $name${NC}"
 
     # Determine if it's a .config item or home dotfile
-    if [[ "$source" == "$HOME/.config/"* ]]; then
-        # It's a .config item
-        echo -n "Package name (new or existing): "
-        read -r pkg_name
-        [[ -z "$pkg_name" ]] && pkg_name="$name"
+    local is_config=false
+    [[ "$source" == "$XDG_CONFIG_HOME/"* ]] && is_config=true
 
-        # Validate package name
-        if [[ ! "$pkg_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-            _log_warn "Invalid package name. Use only letters, numbers, dash, underscore."
-            return 1
-        fi
-
-        local pkg_dir="$DOTFILES_DIR/$pkg_name/.config"
-        mkdir -p "$pkg_dir"
-
-        # Move and stow (using -d flag to avoid changing directory)
-        if mv "$source" "$pkg_dir/"; then
-            echo -e "${GREEN}Moved to:${NC} $pkg_dir/$name"
-        else
-            _log_warn "Failed to move $source"
-            return 1
-        fi
-
-        if stow -d "$DOTFILES_DIR" -t "$HOME" -R "$pkg_name"; then
-            echo -e "${GREEN}Stowed:${NC} $pkg_name"
-        else
-            _log_warn "Failed to stow $pkg_name"
-            return 1
-        fi
+    # Prompt for package name
+    local default_pkg
+    if [[ "$is_config" == true ]]; then
+        default_pkg="$name"
     else
-        # It's a home dotfile
-        echo -n "Package name (new or existing): "
-        read -r pkg_name
-        [[ -z "$pkg_name" ]] && pkg_name="${name#.}"  # Remove leading dot for package name
+        default_pkg="${name#.}"  # Remove leading dot
+    fi
 
-        # Validate package name
-        if [[ ! "$pkg_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
-            _log_warn "Invalid package name. Use only letters, numbers, dash, underscore."
-            return 1
-        fi
+    echo -n "Package name [$default_pkg]: "
+    read -r pkg_name
+    [[ -z "$pkg_name" ]] && pkg_name="$default_pkg"
 
-        local pkg_dir="$DOTFILES_DIR/$pkg_name"
-        mkdir -p "$pkg_dir"
+    # Validate
+    if ! validate_package_name "$pkg_name"; then
+        return 1
+    fi
 
-        # Move and stow (using -d flag to avoid changing directory)
-        if mv "$source" "$pkg_dir/"; then
-            echo -e "${GREEN}Moved to:${NC} $pkg_dir/$name"
+    # Determine destination
+    local pkg_dir
+    if [[ "$is_config" == true ]]; then
+        pkg_dir="$DOTFILES_DIR/$pkg_name/.config"
+    else
+        pkg_dir="$DOTFILES_DIR/$pkg_name"
+    fi
+
+    mkdir -p "$pkg_dir"
+
+    # Move file
+    if mv "$source" "$pkg_dir/"; then
+        echo -e "${GREEN}Moved to:${NC} $pkg_dir/$name"
+    else
+        warn "Failed to move $source"
+        return 1
+    fi
+
+    # Stow package
+    if stow -d "$DOTFILES_DIR" -t "$HOME" -R "$pkg_name" 2>/dev/null; then
+        echo -e "${GREEN}Stowed:${NC} $pkg_name"
+        ADDED_ITEMS+=("$name → $pkg_name")
+        return 0
+    else
+        warn "Failed to stow $pkg_name"
+        # Try to restore
+        if [[ "$is_config" == true ]]; then
+            mv "$pkg_dir/$name" "$XDG_CONFIG_HOME/" 2>/dev/null || true
         else
-            _log_warn "Failed to move $source"
-            return 1
+            mv "$pkg_dir/$name" "$HOME/" 2>/dev/null || true
         fi
-
-        if stow -d "$DOTFILES_DIR" -t "$HOME" -R "$pkg_name"; then
-            echo -e "${GREEN}Stowed:${NC} $pkg_name"
-        else
-            _log_warn "Failed to stow $pkg_name"
-            return 1
-        fi
+        return 1
     fi
 }
 
-# Interactive menu for an item - uses loop instead of recursion
+# Add to permanent ignore list
+add_to_ignore() {
+    local name="$1"
+    echo "$name" >> "$DOTFILES_DIR/.dotfiles-ignore"
+    IGNORED_ITEMS+=("$name")
+    echo -e "${YELLOW}Added to .dotfiles-ignore${NC}"
+}
+
+# =============================================================================
+# INTERACTIVE PROMPT
+# =============================================================================
+
 prompt_action() {
     local path="$1"
     local name="$2"
@@ -180,7 +259,8 @@ prompt_action() {
     IFS='|' read -r type size age <<< "$info"
 
     while true; do
-        echo -e "\n${BOLD}$name${NC} ${DIM}($type, $size, modified $age)${NC}"
+        echo ""
+        echo -e "${BOLD}$name${NC} ${DIM}($type, $size, modified $age)${NC}"
         echo -e "  ${DIM}$path${NC}"
         echo -n "[a]dd to dotfiles, [s]kip, [i]gnore permanently, [v]iew, [q]uit: "
 
@@ -194,21 +274,23 @@ prompt_action() {
                 ;;
             s|S)
                 echo -e "${DIM}Skipped${NC}"
+                SKIPPED_ITEMS+=("$name")
                 return 0
                 ;;
             i|I)
-                # Add to local ignore file
-                echo "$name" >> "$DOTFILES_DIR/.dotfiles-ignore"
-                echo -e "${YELLOW}Added to .dotfiles-ignore${NC}"
+                add_to_ignore "$name"
                 return 0
                 ;;
             v|V)
                 echo ""
+                echo -e "${DIM}────────────────────────────────────────${NC}"
                 if [[ -d "$path" ]]; then
+                    # shellcheck disable=SC2012  # ls for interactive display
                     ls -la "$path" 2>/dev/null | head -20
                 else
                     head -50 "$path" 2>/dev/null || file "$path"
                 fi
+                echo -e "${DIM}────────────────────────────────────────${NC}"
                 # Loop continues - will show prompt again
                 ;;
             q|Q)
@@ -217,31 +299,30 @@ prompt_action() {
                 ;;
             *)
                 echo -e "${DIM}Skipped${NC}"
+                SKIPPED_ITEMS+=("$name")
                 return 0
                 ;;
         esac
     done
 }
 
-# Load ignore list
-load_ignores() {
-    if [[ -f "$DOTFILES_DIR/.dotfiles-ignore" ]]; then
-        cat "$DOTFILES_DIR/.dotfiles-ignore"
-    fi
-}
+# =============================================================================
+# MAIN
+# =============================================================================
 
-# Main
 main() {
     local mode="${1:-interactive}"
-    local untracked=()
+
+    # Detect OS for cross-platform stat
+    _detect_os OS ARCH PKG_MANAGER
 
     # Check if running interactively
-    if [[ "$mode" == "interactive" && ! -t 0 ]]; then
-        _log_error "Not running in a terminal. Use --list for non-interactive mode."
-        exit 1
+    if [[ "$mode" == "interactive" ]] && ! is_interactive; then
+        error "Not running in a terminal. Use --list for non-interactive mode."
     fi
 
-    echo -e "${BOLD}${CYAN}Finding untracked dotfiles...${NC}\n"
+    echo -e "${BOLD}${CYAN}Finding untracked dotfiles...${NC}"
+    echo ""
 
     # Load user ignores
     local user_ignores
@@ -252,8 +333,11 @@ main() {
     managed_configs=$(get_managed_configs)
     managed_home=$(get_managed_home)
 
-    # Scan ~/.config
-    echo -e "${CYAN}Scanning ~/.config...${NC}"
+    # Collect untracked items
+    local -a untracked=()
+
+    # Scan XDG_CONFIG_HOME
+    info "Scanning $XDG_CONFIG_HOME..."
     while IFS= read -r item; do
         [[ -z "$item" ]] && continue
         should_ignore "$item" && continue
@@ -261,14 +345,18 @@ main() {
 
         # Check if managed
         if ! echo "$managed_configs" | grep -qxF "$item"; then
-            untracked+=("$HOME/.config/$item")
+            untracked+=("$XDG_CONFIG_HOME/$item")
         fi
-    done < <(ls -1 "$HOME/.config" 2>/dev/null || true)
+    done < <(ls -1 "$XDG_CONFIG_HOME" 2>/dev/null || true)
 
     # Scan ~/ for dotfiles
-    echo -e "${CYAN}Scanning ~/...${NC}"
-    while IFS= read -r item; do
-        [[ -z "$item" ]] && continue
+    info "Scanning $HOME..."
+    for f in "$HOME"/.*; do
+        [[ -e "$f" ]] || continue
+        local item
+        item=$(basename "$f")
+        [[ "$item" == "." || "$item" == ".." ]] && continue
+        # Skip standard XDG directories
         [[ "$item" == ".config" || "$item" == ".local" || "$item" == ".cache" ]] && continue
         should_ignore "$item" && continue
         echo "$user_ignores" | grep -qxF "$item" && continue
@@ -277,24 +365,34 @@ main() {
         if ! echo "$managed_home" | grep -qxF "$item"; then
             untracked+=("$HOME/$item")
         fi
-    done < <(ls -1A "$HOME" 2>/dev/null | grep '^\.' || true)
+    done
 
     # Results
-    echo -e "\n${BOLD}Found ${#untracked[@]} untracked dotfiles${NC}"
+    echo ""
+    echo -e "${BOLD}Found ${#untracked[@]} untracked dotfiles${NC}"
 
     if [[ ${#untracked[@]} -eq 0 ]]; then
         echo -e "${GREEN}All dotfiles are tracked!${NC}"
         exit 0
     fi
 
+    # List mode - just print and exit
     if [[ "$mode" == "list" ]]; then
+        echo ""
         for path in "${untracked[@]}"; do
-            echo "$path"
+            local name info
+            name=$(basename "$path")
+            info=$(get_info "$path")
+            local type size age
+            IFS='|' read -r type size age <<< "$info"
+            printf "%-40s %s  %s  %s\n" "$path" "$type" "$size" "$age"
         done
         exit 0
     fi
 
     # Interactive mode
+    echo -e "${DIM}Press 'q' at any prompt to quit${NC}"
+
     for path in "${untracked[@]}"; do
         local name info
         name=$(basename "$path")
@@ -305,19 +403,18 @@ main() {
     echo -e "\n${GREEN}Done!${NC}"
 }
 
-# Parse args
-case "${1:-}" in
-    -l|--list)
-        main "list"
-        ;;
-    -h|--help)
-        cat << 'EOF'
+# =============================================================================
+# CLI
+# =============================================================================
+
+show_help() {
+    cat << 'EOF'
 Usage: find-new-dotfiles [OPTIONS]
 
 Discover untracked dotfiles and optionally add them to your dotfiles repo.
 
 Options:
-  -l, --list    List untracked dotfiles without prompts
+  -l, --list    List untracked dotfiles without prompts (with details)
   -h, --help    Show this help
 
 Interactive commands:
@@ -328,8 +425,22 @@ Interactive commands:
   q - Quit
 
 Environment:
-  DOTFILES_DIR  Path to dotfiles directory (default: ~/.dotfiles)
+  DOTFILES_DIR    Path to dotfiles directory (default: ~/.dotfiles)
+  XDG_CONFIG_HOME Override config directory (default: ~/.config)
+
+Examples:
+  find-new-dotfiles              # Interactive mode
+  find-new-dotfiles --list       # List untracked files with details
+  find-new-dotfiles --list | wc  # Count untracked files
 EOF
+}
+
+case "${1:-}" in
+    -l|--list)
+        main "list"
+        ;;
+    -h|--help)
+        show_help
         ;;
     *)
         main "interactive"
