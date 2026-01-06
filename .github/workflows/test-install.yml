@@ -1,0 +1,115 @@
+name: Test Dotfiles Install
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  test-macos-arm:
+    name: macOS (Apple Silicon)
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Dry run install
+        run: ./install.sh --dry-run --yes
+
+      - name: Run install script
+        run: ./install.sh --yes
+        env:
+          NONINTERACTIVE: 1
+
+      - name: Verify core tools installed
+        run: |
+          echo "Checking installed tools..."
+          command -v stow && echo "✓ stow"
+          command -v zsh && echo "✓ zsh"
+          command -v fzf && echo "✓ fzf"
+          command -v bat && echo "✓ bat"
+          command -v mise && echo "✓ mise"
+          command -v node && echo "✓ node"
+          command -v python && echo "✓ python"
+
+      - name: Verify stowed configs
+        run: |
+          echo "Checking symlinked configs..."
+          test -L ~/.zshrc && echo "✓ ~/.zshrc is symlink"
+          test -L ~/.gitconfig && echo "✓ ~/.gitconfig is symlink"
+          test -d ~/.config/kitty && echo "✓ ~/.config/kitty exists"
+
+      - name: Dry run uninstall
+        run: ./uninstall.sh --dry-run --yes
+
+      - name: Run uninstall script
+        run: ./uninstall.sh --yes
+
+      - name: Verify configs removed
+        run: |
+          echo "Checking symlinks are removed..."
+          ! test -L ~/.zshrc && echo "✓ ~/.zshrc removed"
+          ! test -L ~/.gitconfig && echo "✓ ~/.gitconfig removed"
+          echo "Uninstall verified"
+
+  test-macos-intel:
+    name: macOS (Intel)
+    runs-on: macos-13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run install script
+        run: ./install.sh --yes
+        env:
+          NONINTERACTIVE: 1
+
+      - name: Verify core tools
+        run: |
+          command -v stow && echo "✓ stow"
+          command -v zsh && echo "✓ zsh"
+          command -v mise && echo "✓ mise"
+
+      - name: Verify stowed configs
+        run: |
+          test -L ~/.zshrc && echo "✓ ~/.zshrc is symlink"
+          test -L ~/.gitconfig && echo "✓ ~/.gitconfig is symlink"
+
+      - name: Run uninstall script
+        run: ./uninstall.sh --yes
+
+      - name: Verify uninstall
+        run: |
+          ! test -L ~/.zshrc && echo "✓ ~/.zshrc removed"
+          ! test -L ~/.gitconfig && echo "✓ ~/.gitconfig removed"
+
+  test-ubuntu:
+    name: Ubuntu
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run install script
+        run: ./install.sh --yes
+
+      - name: Verify core tools
+        run: |
+          command -v stow && echo "✓ stow"
+          command -v zsh && echo "✓ zsh"
+          command -v fzf && echo "✓ fzf"
+
+      - name: Verify stowed configs
+        run: |
+          test -L ~/.zshrc && echo "✓ ~/.zshrc is symlink"
+          test -L ~/.gitconfig && echo "✓ ~/.gitconfig is symlink"
+
+      - name: Run uninstall script
+        run: ./uninstall.sh --yes
+
+      - name: Verify uninstall
+        run: |
+          ! test -L ~/.zshrc && echo "✓ ~/.zshrc removed"
+          ! test -L ~/.gitconfig && echo "✓ ~/.gitconfig removed"
