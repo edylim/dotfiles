@@ -64,4 +64,14 @@ if [[ ! -d "$TMPDIR" ]]; then
 fi
 
 TMPPREFIX="${TMPDIR%/}/zsh"
-eval "$(/opt/homebrew/bin/brew shellenv)"
+
+# Homebrew setup - detect ARM vs Intel Mac, skip on Linux
+if [[ "$OSTYPE" == darwin* ]]; then
+  if [[ -f /opt/homebrew/bin/brew ]]; then
+    # Apple Silicon (ARM)
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  elif [[ -f /usr/local/bin/brew ]]; then
+    # Intel Mac
+    eval "$(/usr/local/bin/brew shellenv)"
+  fi
+fi

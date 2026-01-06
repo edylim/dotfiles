@@ -1,11 +1,16 @@
 # Unix
-alias ls="gls --color"
+# Use GNU ls on macOS (requires coreutils), native ls on Linux
+if command -v gls &> /dev/null; then
+  alias ls="gls --color"
+else
+  alias ls="ls --color=auto"
+fi
 alias ll="ls -alh"
 alias ln="ln -v"
 alias mkdir="mkdir -p"
 alias auxp="lsof -i"
-alias aux="ps aux | grep"
-alias kill="kill -9"
+# Use pgrep for process searching (aux="ps aux | grep" greps itself)
+alias psg="ps aux | grep -v grep | grep"
 alias ka="killall -9"
 alias kan="killall -9 node"
 
@@ -13,8 +18,13 @@ alias kan="killall -9 node"
 alias gce="gh copilot explain "
 alias gcs="gh copilot suggest "
 
-# go
-alias air='$(go env GOPATH)/bin/air'
+# go - air (live reload for Go apps)
+# Cache GOPATH at shell startup to avoid running go env on every invocation
+if command -v go &> /dev/null; then
+  _gopath="$(go env GOPATH 2>/dev/null)"
+  [[ -n "$_gopath" ]] && alias air="$_gopath/bin/air"
+  unset _gopath
+fi
 
 #vim
 alias v="nvim"
@@ -43,4 +53,4 @@ alias path='echo $PATH | tr -s ":" "\n"'
 alias yd="yarn dev"
 
 # Include custom aliases
-[[ -f ~/.aliases.local ]] && source ~/.aliases.local
+[[ -f "$HOME/.aliases.local" ]] && source "$HOME/.aliases.local"

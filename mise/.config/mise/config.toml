@@ -1,6 +1,7 @@
 [tools]
-node = "latest"
-python = "latest"
+# Use LTS/stable versions for reproducibility
+node = "lts"
+python = "3.12"
 
 [settings]
 experimental = true

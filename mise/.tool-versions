@@ -1,4 +1,4 @@
-nodejs 23.9.0
-postgres 14.4
-mysql 8.0.29
-ruby 3.3.1
+# Managed by mise - see ~/.config/mise/config.toml for tool configuration
+# This file provides fallback compatibility with asdf-style version management
+node lts
+python 3.12
