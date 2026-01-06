@@ -6,3 +6,7 @@
 
 # Ignore backup files created by the install script
 *.bak.*
+
+# Ignore install logs
+install.log
+install.log.old
