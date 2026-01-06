@@ -7,16 +7,17 @@ fi
 
 echo -ne "\e]0;🐈\a"
 
-# Source PreztoV
+# Source Prezto
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
   source "${ZDOTDIR:-$HOME}/.zprezto/init.zsh"
 fi
 
-# yarn path
-export PATH=$HOME/.yarn/bin:$PATH
+# PATH additions (with guards to prevent duplication)
+[[ ":$PATH:" != *":$HOME/.yarn/bin:"* ]] && export PATH="$HOME/.yarn/bin:$PATH"
+[[ ":$PATH:" != *":$HOME/.local/bin:"* ]] && export PATH="$HOME/.local/bin:$PATH"
 
 # no correction suggestions
-unsetopt CORRECT  
+unsetopt CORRECT
 
 ################
 # THEME SETTINGS
@@ -32,11 +33,11 @@ export GREP_COLOR="00;38;5;61"
 export GREP_COLORS="00;38;5;61"
 
 # Dir colors (gdircolors on macOS via coreutils, dircolors on Linux)
-if [[ -f ~/.dircolors ]]; then
+if [[ -f "$HOME/.dircolors" ]]; then
   if command -v gdircolors &> /dev/null; then
-    eval $(gdircolors ~/.dircolors)
+    eval "$(gdircolors "$HOME/.dircolors")"
   elif command -v dircolors &> /dev/null; then
-    eval $(dircolors ~/.dircolors)
+    eval "$(dircolors "$HOME/.dircolors")"
   fi
 fi
 
@@ -45,13 +46,12 @@ if command -v scmpuff &> /dev/null; then
   eval "$(scmpuff init -s)"
 fi
 
-export MUSIC_APP="Spotify"
 
 ##################
 # HISTORY SETTINGS
 ##################
 setopt hist_ignore_all_dups inc_append_history
-HISTFILE=~/.histfile
+HISTFILE="$HOME/.histfile"
 HISTSIZE=10000
 SAVEHIST=10000
 
@@ -60,10 +60,10 @@ setopt beep nomatch notify
 
 # Vim Bindings
 bindkey -v
-zstyle :compinstall filename '~/.zshrc'
+zstyle :compinstall filename "$HOME/.zshrc"
 
 # load our own completion functions
-fpath=(~/.zsh/completion /usr/local/share/zsh/site-functions $fpath)
+fpath=("$HOME/.zsh/completion" /usr/local/share/zsh/site-functions $fpath)
 
 # Note: compinit is handled by Prezto's completion module
 
@@ -93,31 +93,18 @@ unalias gls 2>/dev/null
 
 # Load other program settings
 # aliases
-[[ -f ~/.aliases ]] && source ~/.aliases
+[[ -f "$HOME/.aliases" ]] && source "$HOME/.aliases"
 
 # Local config
-[[ -f ~/.zshrc.local ]] && source ~/.zshrc.local
-
-# export NVM_DIR="~/.nvm"
-# [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"  # This loads nvm
-# if command -v pyenv 1>/dev/null 2>&1; then
-#   eval "$(pyenv init -)"
-# fi
-
-# asdf
-export ASDF_DIR="$HOME/.asdf"
-[[ -f "$HOME/.asdf/asdf.sh" ]] && . "$HOME/.asdf/asdf.sh"
+[[ -f "$HOME/.zshrc.local" ]] && source "$HOME/.zshrc.local"
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+[[ ! -f "$HOME/.p10k.zsh" ]] || source "$HOME/.p10k.zsh"
 
 # macOS-specific settings
 if [[ "$(uname)" == "Darwin" ]]; then
-  export PATH="/usr/local/opt/openssl/bin:$PATH"
+  [[ ":$PATH:" != *":/usr/local/opt/openssl/bin:"* ]] && export PATH="/usr/local/opt/openssl/bin:$PATH"
 fi
-
-# awrit
-export PATH="$HOME/.local/bin:$PATH"
 
 # zoxide
 if command -v zoxide &> /dev/null; then
@@ -126,38 +113,54 @@ fi
 
 # fzf - fuzzy finder (--zsh requires fzf 0.48.0+, fallback to sourcing script)
 if command -v fzf &> /dev/null; then
-  if fzf --zsh &> /dev/null; then
-    source <(fzf --zsh)
-  elif [[ -f ~/.fzf.zsh ]]; then
-    source ~/.fzf.zsh
+  # Try --zsh flag (fzf 0.48.0+), capture output to avoid running twice
+  local _fzf_init
+  if _fzf_init=$(fzf --zsh 2>/dev/null); then
+    eval "$_fzf_init"
+  elif [[ -f "$HOME/.fzf.zsh" ]]; then
+    source "$HOME/.fzf.zsh"
   elif [[ -f /usr/share/fzf/key-bindings.zsh ]]; then
     source /usr/share/fzf/key-bindings.zsh
     [[ -f /usr/share/fzf/completion.zsh ]] && source /usr/share/fzf/completion.zsh
   fi
+  unset _fzf_init
 fi
 
 # Kitty ssh kitten - copies terminfo to remote hosts
 [ "$TERM" = "xterm-kitty" ] && alias ssh="kitty +kitten ssh"
 
-# onefetch
-# git repository greeter
-if command -v onefetch &> /dev/null; then
-  last_repository=
-  check_directory_for_new_repository() {
-    current_repository=$(git rev-parse --show-toplevel 2> /dev/null)
-
-    if [ "$current_repository" ] && \
-       [ "$current_repository" != "$last_repository" ]; then
-      onefetch
-    fi
-    last_repository=$current_repository
-  }
-  function cd {
-    builtin cd "$@"
-    check_directory_for_new_repository
-  }
+# mise - runtime version manager (Node.js, Python, etc.)
+if command -v mise &> /dev/null; then
+  eval "$(mise activate zsh)"
 fi
 
-# optional, greet also when opening shell directly in repository directory
-# adds time to startup
-#check_directory_for_new_repository
+# onefetch - git repository greeter (opt-in, set ONEFETCH_ON_CD=1 to enable)
+# This hooks cd to show repo info, which adds latency to every directory change
+# Set ONEFETCH_TIMEOUT to control max wait time (default: 2 seconds)
+if [[ -n "$ONEFETCH_ON_CD" ]] && command -v onefetch &> /dev/null; then
+  _onefetch_last_repository=
+  _onefetch_timeout="${ONEFETCH_TIMEOUT:-2}"
+
+  _onefetch_check_repository() {
+    local current_repository
+    current_repository=$(git rev-parse --show-toplevel 2>/dev/null)
+    if [[ -n "$current_repository" && "$current_repository" != "$_onefetch_last_repository" ]]; then
+      # Run with timeout to prevent hanging
+      if command -v timeout &> /dev/null; then
+        timeout "$_onefetch_timeout" onefetch 2>/dev/null || true
+      elif command -v gtimeout &> /dev/null; then
+        gtimeout "$_onefetch_timeout" onefetch 2>/dev/null || true
+      else
+        onefetch 2>/dev/null || true
+      fi
+    fi
+    _onefetch_last_repository=$current_repository
+  }
+
+  function cd {
+    builtin cd "$@" && _onefetch_check_repository
+  }
+
+  # Convenience alias to cd without triggering onefetch (uses builtin directly)
+  alias cds='builtin cd'
+fi
