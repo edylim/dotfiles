@@ -246,19 +246,25 @@ save_state() {
         echo "# This file is for reference only (not executable)"
         echo ""
         echo "## Installed"
-        for item in "${INSTALLED_ITEMS[@]:-}"; do
-            [[ -n "$item" ]] && echo "  - $item"
-        done
+        if [[ ${#INSTALLED_ITEMS[@]} -gt 0 ]]; then
+            for item in "${INSTALLED_ITEMS[@]}"; do
+                echo "  - $item"
+            done
+        fi
         echo ""
         echo "## Failed"
-        for item in "${FAILED_ITEMS[@]:-}"; do
-            [[ -n "$item" ]] && echo "  - $item"
-        done
+        if [[ ${#FAILED_ITEMS[@]} -gt 0 ]]; then
+            for item in "${FAILED_ITEMS[@]}"; do
+                echo "  - $item"
+            done
+        fi
         echo ""
         echo "## Skipped"
-        for item in "${SKIPPED_ITEMS[@]:-}"; do
-            [[ -n "$item" ]] && echo "  - $item"
-        done
+        if [[ ${#SKIPPED_ITEMS[@]} -gt 0 ]]; then
+            for item in "${SKIPPED_ITEMS[@]}"; do
+                echo "  - $item"
+            done
+        fi
     } > "$STATE_FILE"
 }
 
@@ -1672,9 +1678,9 @@ resolve_dependencies() {
             for dep_id in "${dep_ids[@]}"; do
                 local dep_idx
                 if dep_idx=$(get_menu_index_by_id "$dep_id"); then
-                    if [[ ${MENU_SELECTED[$dep_idx]} -ne 1 ]]; then
-                        MENU_SELECTED[$dep_idx]=1
-                        local dep_config="${MENU_CONFIG[$dep_idx]}"
+                    if [[ ${MENU_SELECTED[dep_idx]} -ne 1 ]]; then
+                        MENU_SELECTED[dep_idx]=1
+                        local dep_config="${MENU_CONFIG[dep_idx]}"
                         local dep_name
                         IFS='|' read -r _ dep_name _ <<< "$dep_config"
                         info "Auto-enabling dependency: $dep_name"
