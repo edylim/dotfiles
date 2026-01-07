@@ -406,25 +406,32 @@ git_clone() {
     local repo="$1"
     local dest="$2"
     shift 2
-    local extra_args=("$@")
-
-    run_with_timeout "$GIT_TIMEOUT" git clone "${extra_args[@]}" "$repo" "$dest"
+    # Use ${@+"$@"} to safely handle empty args with set -u
+    if [[ $# -gt 0 ]]; then
+        run_with_timeout "$GIT_TIMEOUT" git clone "$@" "$repo" "$dest"
+    else
+        run_with_timeout "$GIT_TIMEOUT" git clone "$repo" "$dest"
+    fi
 }
 
 git_pull() {
     local dir="$1"
     shift
-    local extra_args=("$@")
-
-    run_with_timeout "$GIT_TIMEOUT" git -C "$dir" pull "${extra_args[@]}"
+    if [[ $# -gt 0 ]]; then
+        run_with_timeout "$GIT_TIMEOUT" git -C "$dir" pull "$@"
+    else
+        run_with_timeout "$GIT_TIMEOUT" git -C "$dir" pull
+    fi
 }
 
 git_submodule_update() {
     local dir="$1"
     shift
-    local extra_args=("$@")
-
-    run_with_timeout "$GIT_TIMEOUT" git -C "$dir" submodule update "${extra_args[@]}"
+    if [[ $# -gt 0 ]]; then
+        run_with_timeout "$GIT_TIMEOUT" git -C "$dir" submodule update "$@"
+    else
+        run_with_timeout "$GIT_TIMEOUT" git -C "$dir" submodule update
+    fi
 }
 
 # Check if brew formula is installed
