@@ -119,30 +119,28 @@ restore_cursor() {
 # OS DETECTION
 # =============================================================================
 
+# Detect OS and set global variables (bash 3.2 compatible - no namerefs)
+# Sets: DETECTED_OS, DETECTED_ARCH, DETECTED_PKG_MANAGER
 _detect_os() {
-    local -n os_ref=$1
-    local -n arch_ref=$2
-    local -n pkg_ref=$3
-
-    arch_ref="$(uname -m)"
+    DETECTED_ARCH="$(uname -m)"
     # Normalize architecture names
-    case "$arch_ref" in
-        aarch64) arch_ref="arm64" ;;
-        x86_64|amd64) arch_ref="x86_64" ;;
+    case "$DETECTED_ARCH" in
+        aarch64) DETECTED_ARCH="arm64" ;;
+        x86_64|amd64) DETECTED_ARCH="x86_64" ;;
     esac
 
     if [[ "$(uname)" == "Darwin" ]]; then
-        os_ref="macos"
-        pkg_ref="brew"
+        DETECTED_OS="macos"
+        DETECTED_PKG_MANAGER="brew"
     elif [[ -f /etc/arch-release ]]; then
-        os_ref="arch"
-        pkg_ref="pacman"
+        DETECTED_OS="arch"
+        DETECTED_PKG_MANAGER="pacman"
     elif [[ -f /etc/debian_version ]]; then
-        os_ref="debian"
-        pkg_ref="apt"
+        DETECTED_OS="debian"
+        DETECTED_PKG_MANAGER="apt"
     else
-        os_ref="unknown"
-        pkg_ref=""
+        DETECTED_OS="unknown"
+        DETECTED_PKG_MANAGER=""
     fi
 }
 
