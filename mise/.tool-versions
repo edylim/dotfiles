@@ -1,4 +1,0 @@
-# Managed by mise - see ~/.config/mise/config.toml for tool configuration
-# This file provides fallback compatibility with asdf-style version management
-node lts
-python 3.12
