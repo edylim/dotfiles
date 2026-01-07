@@ -1,5 +1,7 @@
 # dotfiles
 
+[![Test](https://github.com/edylim/dotfiles/actions/workflows/test-install.yml/badge.svg)](https://github.com/edylim/dotfiles/actions/workflows/test-install.yml)
+
 Personal dotfiles for setting up a new environment on macOS, Ubuntu/Debian, and Arch Linux.
 
 ## Installation
@@ -38,12 +40,12 @@ The installer presents an interactive menu with all options selected by default:
 
 **Controls:** Arrow keys or `j`/`k` to navigate, `space`/`enter` to toggle, `a` to select all, `n` to select none, `i` to install, `q` to quit.
 
-### Headless Mode
-
-For automation/CI, use `--yes` to skip the interactive menu and install everything:
+### Options
 
 ```bash
-./install.sh --yes
+./install.sh --yes       # Headless mode: skip menu, install everything
+./install.sh --dry-run   # Preview what would be installed
+./install.sh --help      # Show help
 ```
 
 ### Uninstalling
@@ -99,7 +101,6 @@ To remove all stowed dotfiles and optionally installed packages:
 - **GrumpyVim** - Neovim configuration (includes neovim, lazygit, ripgrep, fd)
 - **Awrit** - Terminal browser
 - **JankyBorders** - Window borders (macOS)
-- **SketchyBar** - Custom menu bar (macOS)
 - **Google Chrome**
 
 ### Shell Configuration
@@ -115,12 +116,13 @@ dotfiles/
 ├── git/            # Git configuration
 ├── jankyborders/   # JankyBorders config (macOS)
 ├── kitty/          # Kitty terminal config
+├── lib/            # Shared shell library
 ├── linting/        # ESLint & Prettier configs
 ├── mise/           # Mise runtime config
-├── sketchybar/     # SketchyBar config (macOS)
 ├── yarn/           # Yarn configuration
 ├── zsh/            # Zsh configuration
-└── install.sh      # Installation script
+├── install.sh      # Installation script
+└── uninstall.sh    # Uninstallation script
 ```
 
 ## Local Configuration
@@ -131,6 +133,7 @@ Private settings go in `.local` files (not tracked by git):
 |------|---------|
 | `~/.gitconfig.local` | Git user name/email |
 | `~/.zshrc.local` | Private shell config |
+| `~/.aliases.local` | Private aliases |
 
 Example `~/.gitconfig.local`:
 ```ini
