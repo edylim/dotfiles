@@ -1709,14 +1709,19 @@ run_installation() {
 
         # Run install function if specified
         if [[ -n "$func" ]]; then
+            log "Running install function: $func"
             "$func" || true  # Continue on failure, we track it
+            log "Completed install function: $func"
         fi
 
         # Add stow package if specified
         if [[ -n "$stow_pkg" ]]; then
             stow_pkgs+=("$stow_pkg")
+            log "Added stow package: $stow_pkg"
         fi
     done
+
+    log "=== Install loop completed, preparing to stow ==="
 
     # Stow all selected packages
     info "Collected stow packages: ${stow_pkgs[*]:-none}"
