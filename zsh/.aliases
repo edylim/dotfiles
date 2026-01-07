@@ -9,8 +9,8 @@ alias ll="ls -alh"
 alias ln="ln -v"
 alias mkdir="mkdir -p"
 alias auxp="lsof -i"
-# Use pgrep for process searching (aux="ps aux | grep" greps itself)
-alias psg="ps aux | grep -v grep | grep"
+# Process search with highlighted matches (avoids grep matching itself)
+psg() { ps aux | grep -E "^USER|$1" | grep -v "grep -E"; }
 alias ka="killall -9"
 alias kan="killall -9 node"
 
@@ -19,10 +19,14 @@ alias gce="gh copilot explain "
 alias gcs="gh copilot suggest "
 
 # go - air (live reload for Go apps)
-# Cache GOPATH at shell startup to avoid running go env on every invocation
-if command -v go &> /dev/null; then
+# Check default GOPATH first, then GOPATH env, then `go env` as fallback
+if [[ -x "$HOME/go/bin/air" ]]; then
+  alias air="$HOME/go/bin/air"
+elif [[ -n "$GOPATH" && -x "$GOPATH/bin/air" ]]; then
+  alias air="$GOPATH/bin/air"
+elif command -v go &>/dev/null; then
   _gopath="$(go env GOPATH 2>/dev/null)"
-  [[ -n "$_gopath" ]] && alias air="$_gopath/bin/air"
+  [[ -n "$_gopath" && -x "$_gopath/bin/air" ]] && alias air="$_gopath/bin/air"
   unset _gopath
 fi
 

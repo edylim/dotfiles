@@ -5,7 +5,8 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-echo -ne "\e]0;🐈\a"
+# Set terminal title (only in terminals that support emoji)
+[[ "$TERM_PROGRAM" == @(kitty|iTerm*|Apple_Terminal|vscode) || "$TERM" == "xterm-kitty" ]] && echo -ne "\e]0;🐈\a"
 
 # Source Prezto
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
@@ -29,8 +30,7 @@ colors
 
 # enable colored output from ls, etc
 export CLICOLOR=1
-export GREP_COLOR="00;38;5;61"
-export GREP_COLORS="00;38;5;61"
+export GREP_COLORS="ms=00;38;5;61:mc=00;38;5;61:sl=:cx=:fn=35:ln=32:bn=32:se=36"
 
 # Dir colors (gdircolors on macOS via coreutils, dircolors on Linux)
 if [[ -f "$HOME/.dircolors" ]]; then
@@ -71,9 +71,6 @@ fpath=("$HOME/.zsh/completion" /usr/local/share/zsh/site-functions $fpath)
 # TERMINAL SETTINGS
 ###################
 
-# Plugins
-# plugins=(git zsh-autosuggestions web-search)
-
 # Disable flow control
 setopt NO_FLOW_CONTROL
 
@@ -94,16 +91,18 @@ unalias gls 2>/dev/null
 # Load other program settings
 # aliases
 [[ -f "$HOME/.aliases" ]] && source "$HOME/.aliases"
-
-# Local config
 [[ -f "$HOME/.zshrc.local" ]] && source "$HOME/.zshrc.local"
 
 # To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
-[[ ! -f "$HOME/.p10k.zsh" ]] || source "$HOME/.p10k.zsh"
+[[ -f "$HOME/.p10k.zsh" ]] && source "$HOME/.p10k.zsh"
 
-# macOS-specific settings
+# macOS-specific settings (OpenSSL path differs by architecture)
 if [[ "$(uname)" == "Darwin" ]]; then
-  [[ ":$PATH:" != *":/usr/local/opt/openssl/bin:"* ]] && export PATH="/usr/local/opt/openssl/bin:$PATH"
+  if [[ -d "/opt/homebrew/opt/openssl/bin" ]]; then
+    [[ ":$PATH:" != *":/opt/homebrew/opt/openssl/bin:"* ]] && export PATH="/opt/homebrew/opt/openssl/bin:$PATH"
+  elif [[ -d "/usr/local/opt/openssl/bin" ]]; then
+    [[ ":$PATH:" != *":/usr/local/opt/openssl/bin:"* ]] && export PATH="/usr/local/opt/openssl/bin:$PATH"
+  fi
 fi
 
 # zoxide
@@ -147,11 +146,11 @@ if [[ -n "$ONEFETCH_ON_CD" ]] && command -v onefetch &> /dev/null; then
     if [[ -n "$current_repository" && "$current_repository" != "$_onefetch_last_repository" ]]; then
       # Run with timeout to prevent hanging
       if command -v timeout &> /dev/null; then
-        timeout "$_onefetch_timeout" onefetch 2>/dev/null || true
+        timeout "$_onefetch_timeout" onefetch 2>/dev/null
       elif command -v gtimeout &> /dev/null; then
-        gtimeout "$_onefetch_timeout" onefetch 2>/dev/null || true
+        gtimeout "$_onefetch_timeout" onefetch 2>/dev/null
       else
-        onefetch 2>/dev/null || true
+        onefetch 2>/dev/null
       fi
     fi
     _onefetch_last_repository=$current_repository
