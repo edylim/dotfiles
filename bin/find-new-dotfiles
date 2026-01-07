@@ -314,7 +314,10 @@ main() {
     local mode="${1:-interactive}"
 
     # Detect OS for cross-platform stat
-    _detect_os OS ARCH PKG_MANAGER
+    _detect_os
+    OS="$DETECTED_OS"
+    ARCH="$DETECTED_ARCH"
+    PKG_MANAGER="$DETECTED_PKG_MANAGER"
 
     # Check if running interactively
     if [[ "$mode" == "interactive" ]] && ! is_interactive; then

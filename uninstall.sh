@@ -125,7 +125,10 @@ trap cleanup EXIT INT TERM
 
 # --- OS Detection ---
 detect_os() {
-    _detect_os OS ARCH PKG_MANAGER
+    _detect_os
+    OS="$DETECTED_OS"
+    ARCH="$DETECTED_ARCH"
+    PKG_MANAGER="$DETECTED_PKG_MANAGER"
     if [[ "$OS" == "unknown" ]]; then
         warn "Unknown OS detected. Some features may not work correctly."
     fi
