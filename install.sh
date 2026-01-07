@@ -272,9 +272,23 @@ validate_dependencies() {
 
 # Verify stow is available before attempting to stow
 require_stow() {
-    if ! command -v stow &> /dev/null; then
-        error "GNU Stow is required but not installed. Please install Core Packages first."
+    hash -r 2>/dev/null || true  # Refresh command cache
+    if command -v stow &> /dev/null; then
+        return 0
     fi
+    # Try common Homebrew locations as fallback
+    local stow_path=""
+    if [[ -x /opt/homebrew/bin/stow ]]; then
+        stow_path="/opt/homebrew/bin/stow"
+    elif [[ -x /usr/local/bin/stow ]]; then
+        stow_path="/usr/local/bin/stow"
+    fi
+    if [[ -n "$stow_path" ]]; then
+        export PATH="${stow_path%/*}:$PATH"
+        log "Added ${stow_path%/*} to PATH for stow"
+        return 0
+    fi
+    error "GNU Stow is required but not installed. Please install Core Packages first."
 }
 
 # --- OS Detection ---
@@ -465,6 +479,8 @@ brew_install() {
     done
     if [[ ${#to_install[@]} -gt 0 ]]; then
         brew install "${to_install[@]}"
+        # Refresh bash's command hash table so newly installed commands are found
+        hash -r 2>/dev/null || true
     fi
 }
 
@@ -577,9 +593,29 @@ install_core_packages() {
         return 1
     fi
 
-    # Update stow availability flag
+    # Update stow availability flag and verify installation
+    hash -r 2>/dev/null || true  # Ensure bash finds newly installed commands
     if command -v stow &> /dev/null; then
         STOW_AVAILABLE=true
+        log "Stow is now available at: $(command -v stow)"
+    else
+        # Try to find stow at common Homebrew locations
+        local stow_path=""
+        if [[ -x /opt/homebrew/bin/stow ]]; then
+            stow_path="/opt/homebrew/bin/stow"
+        elif [[ -x /usr/local/bin/stow ]]; then
+            stow_path="/usr/local/bin/stow"
+        fi
+        if [[ -n "$stow_path" ]]; then
+            warn "stow installed but not in PATH. Found at: $stow_path"
+            # Add Homebrew bin to PATH if not present
+            export PATH="${stow_path%/*}:$PATH"
+            STOW_AVAILABLE=true
+            log "Added ${stow_path%/*} to PATH"
+        else
+            warn "stow installation may have failed - not found in PATH or standard locations"
+            log "PATH: $PATH"
+        fi
     fi
 
     track_success "Core Packages"
