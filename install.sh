@@ -587,7 +587,7 @@ install_core_packages() {
             else
                 export PATH="/usr/local/bin:/usr/local/sbin:$PATH"
             fi
-            brew_install git stow curl wget coreutils || failed=true
+            brew_install git stow curl wget coreutils bash || failed=true
             ;;
         arch)
             if [[ "$DRY_RUN" == true ]]; then
