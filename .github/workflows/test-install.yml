@@ -18,10 +18,33 @@ jobs:
       - name: Dry run install
         run: ./install.sh --dry-run --yes
 
+      - name: Check and backup pre-existing dotfiles
+        run: |
+          echo "Checking for pre-existing dotfiles that might conflict..."
+          ls -la ~ | grep -E '^\.[a-z]' || echo "No dotfiles found"
+          echo ""
+          # Backup and remove files that will conflict with stow
+          mkdir -p ~/.dotfiles-ci-backup
+          for file in ~/.zshrc ~/.gitconfig ~/.zprofile; do
+            if [[ -f "$file" && ! -L "$file" ]]; then
+              echo "Backing up existing $file"
+              mv "$file" ~/.dotfiles-ci-backup/ || true
+            fi
+          done
+
       - name: Run install script
         run: ./install.sh --yes
         env:
           NONINTERACTIVE: 1
+
+      - name: Show install log
+        if: always()
+        run: |
+          echo "=== Install Log ==="
+          cat install.log 2>/dev/null || echo "No install.log found"
+          echo ""
+          echo "=== Install State ==="
+          cat .install-state 2>/dev/null || echo "No state file found"
 
       - name: Verify core tools installed
         run: |
@@ -37,8 +60,27 @@ jobs:
       - name: Verify stowed configs
         run: |
           echo "Checking symlinked configs..."
-          test -L ~/.zshrc && echo "✓ ~/.zshrc is symlink"
-          test -L ~/.gitconfig && echo "✓ ~/.gitconfig is symlink"
+          echo "Home directory dotfiles:"
+          ls -la ~ | grep -E '^\.[a-z]' | head -20 || true
+          echo ""
+          if [[ -L ~/.zshrc ]]; then
+            echo "✓ ~/.zshrc -> $(readlink ~/.zshrc)"
+          elif [[ -f ~/.zshrc ]]; then
+            echo "✗ ~/.zshrc exists but is a regular file, not a symlink"
+            exit 1
+          else
+            echo "✗ ~/.zshrc does not exist"
+            exit 1
+          fi
+          if [[ -L ~/.gitconfig ]]; then
+            echo "✓ ~/.gitconfig -> $(readlink ~/.gitconfig)"
+          elif [[ -f ~/.gitconfig ]]; then
+            echo "✗ ~/.gitconfig exists but is a regular file, not a symlink"
+            exit 1
+          else
+            echo "✗ ~/.gitconfig does not exist"
+            exit 1
+          fi
 
       - name: Dry run uninstall
         run: ./uninstall.sh --dry-run --yes
@@ -60,9 +102,32 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check and backup pre-existing dotfiles
+        run: |
+          echo "Checking for pre-existing dotfiles that might conflict..."
+          ls -la ~ | grep -E '^\.[a-z]' || echo "No dotfiles found"
+          echo ""
+          # Backup and remove files that will conflict with stow
+          mkdir -p ~/.dotfiles-ci-backup
+          for file in ~/.zshrc ~/.gitconfig ~/.zprofile ~/.bashrc; do
+            if [[ -f "$file" && ! -L "$file" ]]; then
+              echo "Backing up existing $file"
+              mv "$file" ~/.dotfiles-ci-backup/ || true
+            fi
+          done
+
       - name: Run install script
         run: ./install.sh --yes
         continue-on-error: true
+
+      - name: Show install log
+        if: always()
+        run: |
+          echo "=== Install Log ==="
+          cat install.log 2>/dev/null || echo "No install.log found"
+          echo ""
+          echo "=== Install State ==="
+          cat .install-state 2>/dev/null || echo "No state file found"
 
       - name: Verify core tools
         run: |
@@ -72,8 +137,28 @@ jobs:
 
       - name: Verify stowed configs
         run: |
-          test -L ~/.zshrc && echo "✓ ~/.zshrc is symlink"
-          test -L ~/.gitconfig && echo "✓ ~/.gitconfig is symlink"
+          echo "Checking symlinked configs..."
+          echo "Home directory dotfiles:"
+          ls -la ~ | grep -E '^\.[a-z]' | head -20 || true
+          echo ""
+          if [[ -L ~/.zshrc ]]; then
+            echo "✓ ~/.zshrc -> $(readlink ~/.zshrc)"
+          elif [[ -f ~/.zshrc ]]; then
+            echo "✗ ~/.zshrc exists but is a regular file, not a symlink"
+            exit 1
+          else
+            echo "✗ ~/.zshrc does not exist"
+            exit 1
+          fi
+          if [[ -L ~/.gitconfig ]]; then
+            echo "✓ ~/.gitconfig -> $(readlink ~/.gitconfig)"
+          elif [[ -f ~/.gitconfig ]]; then
+            echo "✗ ~/.gitconfig exists but is a regular file, not a symlink"
+            exit 1
+          else
+            echo "✗ ~/.gitconfig does not exist"
+            exit 1
+          fi
 
       - name: Run uninstall script
         run: ./uninstall.sh --yes
