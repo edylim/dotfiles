@@ -60,9 +60,20 @@ jobs:
       - name: Verify stowed configs
         run: |
           echo "Checking symlinked configs..."
-          echo "Home directory dotfiles:"
-          ls -la ~ | grep -E '^\.[a-z]' | head -20 || true
           echo ""
+          echo "=== Home directory contents ==="
+          ls -la ~ | head -30
+          echo ""
+          echo "=== Dotfiles directory structure ==="
+          ls -la "$GITHUB_WORKSPACE"
+          echo ""
+          echo "=== Zsh stow package ==="
+          ls -la "$GITHUB_WORKSPACE/zsh/" || echo "zsh package not found"
+          echo ""
+          echo "=== Git stow package ==="
+          ls -la "$GITHUB_WORKSPACE/git/" || echo "git package not found"
+          echo ""
+          echo "=== Verifying symlinks ==="
           if [[ -L ~/.zshrc ]]; then
             echo "✓ ~/.zshrc -> $(readlink ~/.zshrc)"
           elif [[ -f ~/.zshrc ]]; then
@@ -70,6 +81,8 @@ jobs:
             exit 1
           else
             echo "✗ ~/.zshrc does not exist"
+            echo "DEBUG: Checking install log for stow info..."
+            grep -i stow install.log 2>/dev/null || echo "No stow entries in log"
             exit 1
           fi
           if [[ -L ~/.gitconfig ]]; then
@@ -138,9 +151,20 @@ jobs:
       - name: Verify stowed configs
         run: |
           echo "Checking symlinked configs..."
-          echo "Home directory dotfiles:"
-          ls -la ~ | grep -E '^\.[a-z]' | head -20 || true
           echo ""
+          echo "=== Home directory contents ==="
+          ls -la ~ | head -30
+          echo ""
+          echo "=== Dotfiles directory structure ==="
+          ls -la "$GITHUB_WORKSPACE"
+          echo ""
+          echo "=== Zsh stow package ==="
+          ls -la "$GITHUB_WORKSPACE/zsh/" || echo "zsh package not found"
+          echo ""
+          echo "=== Git stow package ==="
+          ls -la "$GITHUB_WORKSPACE/git/" || echo "git package not found"
+          echo ""
+          echo "=== Verifying symlinks ==="
           if [[ -L ~/.zshrc ]]; then
             echo "✓ ~/.zshrc -> $(readlink ~/.zshrc)"
           elif [[ -f ~/.zshrc ]]; then
@@ -148,6 +172,8 @@ jobs:
             exit 1
           else
             echo "✗ ~/.zshrc does not exist"
+            echo "DEBUG: Checking install log for stow info..."
+            grep -i stow install.log 2>/dev/null || echo "No stow entries in log"
             exit 1
           fi
           if [[ -L ~/.gitconfig ]]; then
