@@ -1333,13 +1333,19 @@ stow_package() {
 
     # Run stow - try regular stow first, use -R (restow) for updates
     local stow_output
+    log "Running: stow -d $DOTFILES_DIR -t $HOME $pkg"
     if stow_output=$(stow -d "$DOTFILES_DIR" -t "$HOME" "$pkg" 2>&1); then
+        log "Stow $pkg succeeded"
+        success "Stowed $pkg"
         return 0
     elif stow_output=$(stow -d "$DOTFILES_DIR" -t "$HOME" -R "$pkg" 2>&1); then
         # Restow succeeded - links were updated
+        log "Restow $pkg succeeded"
+        success "Restowed $pkg"
         return 0
     else
         warn "Failed to stow $pkg: $stow_output"
+        log "Stow failed output: $stow_output"
         return 1
     fi
 }
@@ -1351,6 +1357,10 @@ stow_dotfiles() {
     require_stow
 
     info "Linking configuration files with Stow..."
+    log "Stowing packages: ${packages[*]}"
+    log "DOTFILES_DIR=$DOTFILES_DIR"
+    log "HOME=$HOME"
+
     local failed=false
     for pkg in "${packages[@]}"; do
         if ! stow_package "$pkg"; then
@@ -1358,10 +1368,37 @@ stow_dotfiles() {
         fi
     done
 
-    if [[ "$failed" == true ]]; then
-        warn "Some packages failed to stow"
+    # Verify key symlinks were created
+    info "Verifying stowed symlinks..."
+    local verify_failed=false
+    for pkg in "${packages[@]}"; do
+        case "$pkg" in
+            zsh)
+                if [[ -L "$HOME/.zshrc" ]]; then
+                    log "Verified: ~/.zshrc -> $(readlink "$HOME/.zshrc")"
+                else
+                    warn "Verification failed: ~/.zshrc is not a symlink"
+                    log "~/.zshrc exists: $([[ -e "$HOME/.zshrc" ]] && echo yes || echo no)"
+                    log "~/.zshrc is file: $([[ -f "$HOME/.zshrc" ]] && echo yes || echo no)"
+                    log "Home directory contents: $(ls -la "$HOME" 2>&1 | head -20)"
+                    verify_failed=true
+                fi
+                ;;
+            git)
+                if [[ -L "$HOME/.gitconfig" ]]; then
+                    log "Verified: ~/.gitconfig -> $(readlink "$HOME/.gitconfig")"
+                else
+                    warn "Verification failed: ~/.gitconfig is not a symlink"
+                    verify_failed=true
+                fi
+                ;;
+        esac
+    done
+
+    if [[ "$failed" == true ]] || [[ "$verify_failed" == true ]]; then
+        warn "Some packages failed to stow or verify"
     else
-        success "Dotfiles stowed."
+        success "Dotfiles stowed and verified."
     fi
 }
 
@@ -1620,12 +1657,16 @@ run_installation() {
     done
 
     # Stow all selected packages
+    info "Collected stow packages: ${stow_pkgs[*]:-none}"
+    log "Stow packages to process: ${stow_pkgs[*]:-none}"
     if [[ ${#stow_pkgs[@]} -gt 0 ]]; then
         if [[ "$DRY_RUN" == true ]]; then
             echo -e "  ${DIM}[dry-run] Would stow: ${stow_pkgs[*]}${NC}"
         else
             stow_dotfiles "${stow_pkgs[@]}"
         fi
+    else
+        warn "No stow packages collected - this may indicate a configuration issue"
     fi
 
     # Trust mise config files after stowing
