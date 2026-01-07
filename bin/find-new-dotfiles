@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # find-new-dotfiles - discover and add untracked dotfiles interactively
 # shellcheck disable=SC2034  # Some variables are set for state tracking
 # shellcheck disable=SC1091  # Source path is dynamic, resolved at runtime

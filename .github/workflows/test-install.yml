@@ -8,6 +8,19 @@ on:
   workflow_dispatch:
 
 jobs:
+  shellcheck:
+    name: Shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run shellcheck
+        run: |
+          shellcheck --version
+          shellcheck -x install.sh uninstall.sh lib/common.sh bin/find-new-dotfiles
+          echo "✓ All scripts passed shellcheck"
+
   test-macos-arm:
     name: macOS (Apple Silicon)
     runs-on: macos-14
@@ -130,7 +143,6 @@ jobs:
 
       - name: Run install script
         run: ./install.sh --yes
-        continue-on-error: true
 
       - name: Show install log
         if: always()

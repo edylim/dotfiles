@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Common shell library for dotfiles scripts
 # Source this file: source "$DOTFILES_DIR/lib/common.sh"
 #

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # shellcheck disable=SC2034  # Some variables are set for state tracking
 
 # Exit on error, undefined vars, and pipe failures
@@ -10,11 +10,17 @@ set -euo pipefail
 # --- Bootstrap: Handle curl pipe installation ---
 # Usage: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/edylim/dotfiles/master/install.sh)"
 #
-# SECURITY NOTE: Piping curl to bash is inherently risky. If you're security-conscious,
-# clone the repo first and review the code before running:
-#   git clone https://github.com/edylim/dotfiles.git ~/.dotfiles && ~/.dotfiles/install.sh
+# SECURITY NOTES:
+# - Piping curl to bash is inherently risky. For better security, clone and review first:
+#     git clone https://github.com/edylim/dotfiles.git ~/.dotfiles && ~/.dotfiles/install.sh
+# - External installers (mise, zoxide, etc.) are fetched via HTTPS with curl -f (fail on error)
+# - Checksum verification is not implemented because upstream installers are living scripts
+#   without stable checksums. This is a known trade-off for convenience.
+# - All git clones use HTTPS; SSH can be configured via GIT_SSH_COMMAND if needed
 #
-DOTFILES_REPO="https://github.com/edylim/dotfiles.git"
+# Configurable GitHub owner (allows forks to work without modification)
+DOTFILES_OWNER="${DOTFILES_OWNER:-edylim}"
+DOTFILES_REPO="https://github.com/${DOTFILES_OWNER}/dotfiles.git"
 DOTFILES_TARGET="$HOME/.dotfiles"
 
 if [[ -z "${BASH_SOURCE[0]:-}" ]] || [[ "${BASH_SOURCE[0]}" == "bash" ]]; then
@@ -75,27 +81,41 @@ XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 
 # --- Menu Item Configuration ---
-# Each item: name|install_func|stow_pkg|macos_only|dependencies
-# dependencies is comma-separated list of menu item indices that must run first
+# Each item: id|name|install_func|stow_pkg|macos_only|dependencies
+# dependencies is comma-separated list of item IDs (not indices) that must run first
 declare -a MENU_CONFIG=(
-    "Core Packages (git, stow, curl, wget)|install_core_packages||false|"
-    "CLI Tools (zsh, fzf, bat, zoxide, yazi, htop, gh)|install_cli_tools||false|0"
-    "Git Tools (scmpuff, onefetch)|install_git_tools||false|0"
-    "Media Tools (ffmpeg, imagemagick, poppler)|install_media_tools||false|0"
-    "Mise & Runtimes (Node.js LTS, Python)|install_mise_and_runtimes|mise|false|0"
-    "AI Tools (claude, gemini-cli)|install_ai_tools||false|0,4"
-    "Yarn|install_yarn|yarn|false|4"
-    "Kitty Terminal|install_kitty|kitty|false|0"
-    "Google Chrome|install_chrome||false|0"
-    "GrumpyVim (Neovim)|install_grumpyvim||false|0"
-    "Zsh & Prezto|install_zsh_prezto|zsh|false|0,1"
-    "Awrit|install_awrit|awrit|false|0"
-    "JankyBorders (macOS)|install_jankyborders|jankyborders|true|0"
-    "SketchyBar (macOS)|install_sketchybar|sketchybar|true|0"
-    "Linting Configs||linting|false|0"
-    "Bin Scripts||bin|false|0"
-    "Git Config||git|false|0"
+    "core|Core Packages (git, stow, curl, wget)|install_core_packages||false|"
+    "cli|CLI Tools (zsh, fzf, bat, zoxide, yazi, htop, gh)|install_cli_tools||false|core"
+    "git-tools|Git Tools (scmpuff, onefetch)|install_git_tools||false|core"
+    "media|Media Tools (ffmpeg, imagemagick, poppler)|install_media_tools||false|core"
+    "mise|Mise & Runtimes (Node.js LTS, Python)|install_mise_and_runtimes|mise|false|core"
+    "ai|AI Tools (claude, gemini-cli)|install_ai_tools||false|core,mise"
+    "yarn|Yarn|install_yarn|yarn|false|mise"
+    "kitty|Kitty Terminal|install_kitty|kitty|false|core"
+    "chrome|Google Chrome|install_chrome||false|core"
+    "grumpyvim|GrumpyVim (Neovim)|install_grumpyvim||false|core"
+    "zsh|Zsh & Prezto|install_zsh_prezto|zsh|false|core,cli"
+    "awrit|Awrit|install_awrit|awrit|false|core"
+    "jankyborders|JankyBorders (macOS)|install_jankyborders|jankyborders|true|core"
+    "linting|Linting Configs||linting|false|core"
+    "bin|Bin Scripts||bin|false|core"
+    "gitconfig|Git Config||git|false|core"
 )
+
+# Get menu index by ID
+get_menu_index_by_id() {
+    local target_id="$1"
+    for i in "${!MENU_CONFIG[@]}"; do
+        local config="${MENU_CONFIG[$i]}"
+        local id
+        IFS='|' read -r id _ <<< "$config"
+        if [[ "$id" == "$target_id" ]]; then
+            echo "$i"
+            return 0
+        fi
+    done
+    return 1
+}
 
 # --- Color and Style ---
 RED='\033[0;31m'
@@ -118,23 +138,38 @@ acquire_lock() {
         fi
         echo $$ >&200
     else
-        # macOS/BSD: use mkdir (atomic operation)
+        # macOS/BSD: use mkdir (atomic operation) with symlink for atomicity
         local lock_dir="${LOCK_FILE}.d"
-        if ! mkdir "$lock_dir" 2>/dev/null; then
-            # Check if the lock is stale (process dead)
+        local my_lock="/tmp/dotfiles-install-$$.lock"
+
+        # Create our own lock marker
+        echo $$ > "$my_lock"
+
+        # Try to atomically create symlink (avoids TOCTOU race)
+        if ln -s "$my_lock" "$lock_dir" 2>/dev/null; then
+            # Success - we have the lock
+            return 0
+        fi
+
+        # Lock exists - check if stale
+        local existing_lock
+        existing_lock=$(readlink "$lock_dir" 2>/dev/null || echo "")
+        if [[ -n "$existing_lock" && -f "$existing_lock" ]]; then
             local lock_pid
-            lock_pid=$(cat "$lock_dir/pid" 2>/dev/null || echo "")
-            if [[ -n "$lock_pid" ]] && ! kill -0 "$lock_pid" 2>/dev/null; then
-                # Stale lock, remove and retry
-                rm -rf "$lock_dir"
-                if ! mkdir "$lock_dir" 2>/dev/null; then
-                    error "Another instance of install.sh is already running"
-                fi
-            else
-                error "Another instance of install.sh is already running (lock: $lock_dir)"
+            lock_pid=$(cat "$existing_lock" 2>/dev/null || echo "")
+            if [[ -n "$lock_pid" ]] && kill -0 "$lock_pid" 2>/dev/null; then
+                # Process still running
+                rm -f "$my_lock"
+                error "Another instance of install.sh is already running (pid: $lock_pid)"
             fi
         fi
-        echo $$ > "$lock_dir/pid"
+
+        # Stale lock - remove and retry atomically
+        rm -f "$lock_dir" 2>/dev/null
+        if ! ln -s "$my_lock" "$lock_dir" 2>/dev/null; then
+            rm -f "$my_lock"
+            error "Another instance of install.sh is already running"
+        fi
     fi
 }
 
@@ -143,7 +178,7 @@ release_lock() {
         flock -u 200 2>/dev/null || true
         rm -f "$LOCK_FILE" 2>/dev/null || true
     else
-        rm -rf "${LOCK_FILE}.d" 2>/dev/null || true
+        rm -f "${LOCK_FILE}.d" "/tmp/dotfiles-install-$$.lock" 2>/dev/null || true
     fi
 }
 
@@ -208,11 +243,22 @@ track_skip() {
 save_state() {
     {
         echo "# Dotfiles installation state - $(date)"
-        echo "# This file is for reference only"
+        echo "# This file is for reference only (not executable)"
         echo ""
-        echo "INSTALLED=(${INSTALLED_ITEMS[*]:-})"
-        echo "FAILED=(${FAILED_ITEMS[*]:-})"
-        echo "SKIPPED=(${SKIPPED_ITEMS[*]:-})"
+        echo "## Installed"
+        for item in "${INSTALLED_ITEMS[@]:-}"; do
+            [[ -n "$item" ]] && echo "  - $item"
+        done
+        echo ""
+        echo "## Failed"
+        for item in "${FAILED_ITEMS[@]:-}"; do
+            [[ -n "$item" ]] && echo "  - $item"
+        done
+        echo ""
+        echo "## Skipped"
+        for item in "${SKIPPED_ITEMS[@]:-}"; do
+            [[ -n "$item" ]] && echo "  - $item"
+        done
     } > "$STATE_FILE"
 }
 
@@ -1096,41 +1142,6 @@ install_jankyborders() {
     success "JankyBorders installed."
 }
 
-install_sketchybar() {
-    [[ "$OS" != "macos" ]] && return 0
-
-    info "Installing SketchyBar..."
-    if [[ "$DRY_RUN" == true ]]; then
-        echo -e "  ${DIM}[dry-run] Would install sketchybar${NC}"
-        return 0
-    fi
-
-    if brew_installed sketchybar; then
-        echo -e "  ${DIM}sketchybar already installed${NC}"
-    else
-        brew_tap FelixKratz/formulae
-        brew install sketchybar
-    fi
-    cask_install sf-symbols
-    brew_install jq
-
-    # Build helpers if they exist and have Makefiles
-    local helpers_dir="$DOTFILES_DIR/sketchybar/.config/sketchybar/helpers"
-    if [[ -d "$helpers_dir" ]]; then
-        info "Building SketchyBar helpers..."
-        for makefile in "$helpers_dir"/*/Makefile; do
-            if [[ -f "$makefile" ]]; then
-                local helper_dir
-                helper_dir=$(dirname "$makefile")
-                (cd "$helper_dir" && make) || warn "Failed to build helper in $helper_dir"
-            fi
-        done
-    fi
-
-    track_success "SketchyBar"
-    success "SketchyBar installed."
-}
-
 install_awrit() {
     info "Installing Awrit..."
     local AW_INSTALL_DIR="$HOME/.awrit"
@@ -1214,13 +1225,13 @@ install_grumpyvim() {
                 return 1
             }
             info "Backed up to: $backup_name"
-            if ! git_clone https://github.com/edylim/grumpyvim.git "$NVIM_CONFIG_DIR"; then
+            if ! git_clone "https://github.com/${DOTFILES_OWNER}/grumpyvim.git" "$NVIM_CONFIG_DIR"; then
                 track_failure "GrumpyVim" "clone failed after backup"
                 return 1
             fi
         fi
     else
-        if ! git_clone https://github.com/edylim/grumpyvim.git "$NVIM_CONFIG_DIR"; then
+        if ! git_clone "https://github.com/${DOTFILES_OWNER}/grumpyvim.git" "$NVIM_CONFIG_DIR"; then
             track_failure "GrumpyVim" "clone failed"
             return 1
         fi
@@ -1259,7 +1270,7 @@ install_zsh_prezto() {
             warn "Incomplete Prezto installation found. Removing and reinstalling..."
             rm -rf "$prezto_dir"
             info "Cloning Prezto (this may take a moment)..."
-            if ! git_clone https://github.com/sorin-ionescu/prezto.git "$prezto_dir" --depth 1 --recursive; then
+            if ! git_clone https://github.com/sorin-ionescu/prezto.git "$prezto_dir" --depth 1 --recursive --shallow-submodules; then
                 track_failure "Prezto" "clone failed"
                 warn "Failed to clone Prezto"
                 return 1
@@ -1267,7 +1278,7 @@ install_zsh_prezto() {
         fi
     else
         info "Cloning Prezto (this may take a moment)..."
-        if ! git_clone https://github.com/sorin-ionescu/prezto.git "$prezto_dir" --depth 1 --recursive; then
+        if ! git_clone https://github.com/sorin-ionescu/prezto.git "$prezto_dir" --depth 1 --recursive --shallow-submodules; then
             track_failure "Prezto" "clone failed"
             warn "Failed to clone Prezto"
             return 1
@@ -1481,8 +1492,8 @@ draw_menu() {
 
     for i in "${!MENU_CONFIG[@]}"; do
         local config="${MENU_CONFIG[$i]}"
-        local item func stow_pkg is_macos_only deps
-        IFS='|' read -r item func stow_pkg is_macos_only deps <<< "$config"
+        local id item func stow_pkg is_macos_only deps
+        IFS='|' read -r id item func stow_pkg is_macos_only deps <<< "$config"
         local selected="${MENU_SELECTED[$i]}"
 
         # Skip macOS-only items on other platforms
@@ -1526,8 +1537,8 @@ draw_menu() {
 get_visible_items() {
     local -a visible=()
     for i in "${!MENU_CONFIG[@]}"; do
-        local name func stow_pkg is_macos_only deps
-        IFS='|' read -r name func stow_pkg is_macos_only deps <<< "${MENU_CONFIG[$i]}"
+        local id name func stow_pkg is_macos_only deps
+        IFS='|' read -r id name func stow_pkg is_macos_only deps <<< "${MENU_CONFIG[$i]}"
         if [[ "$is_macos_only" == "true" && "$OS" != "macos" ]]; then
             continue
         fi
@@ -1638,7 +1649,7 @@ run_menu() {
 # MAIN INSTALLATION LOGIC
 # =============================================================================
 
-# Check and auto-select dependencies
+# Check and auto-select dependencies (uses named IDs, not indices)
 resolve_dependencies() {
     local changed=true
     while [[ "$changed" == true ]]; do
@@ -1649,23 +1660,28 @@ resolve_dependencies() {
             fi
 
             local config="${MENU_CONFIG[$i]}"
-            local name func stow_pkg is_macos_only deps
-            IFS='|' read -r name func stow_pkg is_macos_only deps <<< "$config"
+            local id name func stow_pkg is_macos_only deps
+            IFS='|' read -r id name func stow_pkg is_macos_only deps <<< "$config"
 
             if [[ -z "$deps" ]]; then
                 continue
             fi
 
-            # Enable all dependencies
-            IFS=',' read -ra dep_indices <<< "$deps"
-            for dep_idx in "${dep_indices[@]}"; do
-                if [[ ${MENU_SELECTED[dep_idx]} -ne 1 ]]; then
-                    MENU_SELECTED[dep_idx]=1
-                    local dep_config="${MENU_CONFIG[dep_idx]}"
-                    local dep_name
-                    IFS='|' read -r dep_name _ <<< "$dep_config"
-                    info "Auto-enabling dependency: $dep_name"
-                    changed=true
+            # Enable all dependencies by ID
+            IFS=',' read -ra dep_ids <<< "$deps"
+            for dep_id in "${dep_ids[@]}"; do
+                local dep_idx
+                if dep_idx=$(get_menu_index_by_id "$dep_id"); then
+                    if [[ ${MENU_SELECTED[$dep_idx]} -ne 1 ]]; then
+                        MENU_SELECTED[$dep_idx]=1
+                        local dep_config="${MENU_CONFIG[$dep_idx]}"
+                        local dep_name
+                        IFS='|' read -r _ dep_name _ <<< "$dep_config"
+                        info "Auto-enabling dependency: $dep_name"
+                        changed=true
+                    fi
+                else
+                    warn "Unknown dependency ID: $dep_id"
                 fi
             done
         done
@@ -1694,8 +1710,8 @@ run_installation() {
         fi
 
         local config="${MENU_CONFIG[$i]}"
-        local name func stow_pkg is_macos_only deps
-        IFS='|' read -r name func stow_pkg is_macos_only deps <<< "$config"
+        local id name func stow_pkg is_macos_only deps
+        IFS='|' read -r id name func stow_pkg is_macos_only deps <<< "$config"
 
         # Skip macOS-only items on other platforms
         if [[ "$is_macos_only" == "true" && "$OS" != "macos" ]]; then

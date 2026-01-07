@@ -1,4 +1,37 @@
 [include]
   path = ~/.gitconfig.local
+
 [init]
-	defaultBranch = main
+  defaultBranch = main
+
+[core]
+  autocrlf = input
+  editor = nvim
+  pager = less -FRX
+
+[pull]
+  rebase = true
+
+[push]
+  default = current
+  autoSetupRemote = true
+
+[fetch]
+  prune = true
+  pruneTags = true
+
+[rebase]
+  autoStash = true
+
+[merge]
+  conflictStyle = diff3
+
+[diff]
+  algorithm = histogram
+  colorMoved = default
+
+[rerere]
+  enabled = true
+
+[help]
+  autocorrect = prompt

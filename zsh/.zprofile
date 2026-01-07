@@ -26,18 +26,21 @@ fi
 #
 # Paths
 #
-if command -v go &> /dev/null; then
-  export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
-  export PATH=$PATH:$(go env GOPATH)/bin
+# Go: check default GOPATH first ($HOME/go), then GOPATH env, then `go env` as fallback
+# This avoids slow `go env` call (~100ms) for users with default setup
+if [[ -d "$HOME/go/bin" ]]; then
+  export PATH="$PATH:$HOME/go/bin"
+elif [[ -n "$GOPATH" && -d "$GOPATH/bin" ]]; then
+  export PATH="$PATH:$GOPATH/bin"
+elif command -v go &>/dev/null; then
+  # Fallback for custom GOPATH users who haven't set GOPATH env var
+  _gopath="$(go env GOPATH 2>/dev/null)"
+  [[ -n "$_gopath" && -d "$_gopath/bin" ]] && export PATH="$PATH:$_gopath/bin"
+  unset _gopath
 fi
 
 # Ensure path arrays do not contain duplicates.
 typeset -gU cdpath fpath mailpath path
-
-# Set the the list of directories that cd searches.
-# cdpath=(
-#   $cdpath
-# )
 
 #
 # Less

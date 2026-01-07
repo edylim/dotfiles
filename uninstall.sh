@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # shellcheck disable=SC2034  # Some variables are set for state tracking
 # shellcheck source=lib/common.sh
 
@@ -58,7 +58,6 @@ STOW_PACKAGES=(
     "kitty"
     "linting"
     "mise"
-    "sketchybar"
     "yarn"
     "zsh"
 )
