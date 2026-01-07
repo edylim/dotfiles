@@ -82,23 +82,15 @@ jobs:
           echo "=== Verifying symlinks ==="
           if [[ -L ~/.zshrc ]]; then
             echo "✓ ~/.zshrc -> $(readlink ~/.zshrc)"
-          elif [[ -f ~/.zshrc ]]; then
-            echo "✗ ~/.zshrc exists but is a regular file, not a symlink"
-            exit 1
           else
-            echo "✗ ~/.zshrc does not exist"
-            echo "=== FULL INSTALL LOG ==="
-            cat install.log 2>/dev/null || echo "No install.log found"
-            echo "=== END LOG ==="
+            echo "✗ ~/.zshrc missing or not a symlink"
+            tail -30 install.log 2>/dev/null || true
             exit 1
           fi
           if [[ -L ~/.gitconfig ]]; then
             echo "✓ ~/.gitconfig -> $(readlink ~/.gitconfig)"
-          elif [[ -f ~/.gitconfig ]]; then
-            echo "✗ ~/.gitconfig exists but is a regular file, not a symlink"
-            exit 1
           else
-            echo "✗ ~/.gitconfig does not exist"
+            echo "✗ ~/.gitconfig missing or not a symlink"
             exit 1
           fi
 
@@ -177,23 +169,15 @@ jobs:
           echo "=== Verifying symlinks ==="
           if [[ -L ~/.zshrc ]]; then
             echo "✓ ~/.zshrc -> $(readlink ~/.zshrc)"
-          elif [[ -f ~/.zshrc ]]; then
-            echo "✗ ~/.zshrc exists but is a regular file, not a symlink"
-            exit 1
           else
-            echo "✗ ~/.zshrc does not exist"
-            echo "=== FULL INSTALL LOG ==="
-            cat install.log 2>/dev/null || echo "No install.log found"
-            echo "=== END LOG ==="
+            echo "✗ ~/.zshrc missing or not a symlink"
+            tail -30 install.log 2>/dev/null || true
             exit 1
           fi
           if [[ -L ~/.gitconfig ]]; then
             echo "✓ ~/.gitconfig -> $(readlink ~/.gitconfig)"
-          elif [[ -f ~/.gitconfig ]]; then
-            echo "✗ ~/.gitconfig exists but is a regular file, not a symlink"
-            exit 1
           else
-            echo "✗ ~/.gitconfig does not exist"
+            echo "✗ ~/.gitconfig missing or not a symlink"
             exit 1
           fi
 

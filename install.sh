@@ -272,10 +272,9 @@ validate_dependencies() {
 
 # Verify stow is available before attempting to stow
 require_stow() {
-    log "require_stow: checking for stow..."
     hash -r 2>/dev/null || true  # Refresh command cache
 
-    # First, check explicit paths (more reliable than command -v in CI)
+    # Check explicit paths first (more reliable than command -v in CI)
     local stow_path=""
     if [[ -x /opt/homebrew/bin/stow ]]; then
         stow_path="/opt/homebrew/bin/stow"
@@ -290,13 +289,10 @@ require_stow() {
         local stow_dir="${stow_path%/*}"
         if [[ ":$PATH:" != *":$stow_dir:"* ]]; then
             export PATH="$stow_dir:$PATH"
-            log "require_stow: added $stow_dir to PATH"
         fi
-        log "require_stow: found stow at $stow_path"
         return 0
     fi
 
-    log "require_stow: stow not found anywhere"
     error "GNU Stow is required but not installed. Please install Core Packages first."
 }
 
@@ -617,10 +613,9 @@ install_core_packages() {
     fi
 
     # Update stow availability flag and verify installation
-    hash -r 2>/dev/null || true  # Ensure bash finds newly installed commands
+    hash -r 2>/dev/null || true
 
-    # On macOS, explicitly verify stow at the expected Homebrew location
-    # The hash -r and command -v approach is unreliable in some CI environments
+    # Verify stow is available (check explicit paths for reliability in CI)
     if [[ "$OS" == "macos" ]]; then
         local brew_prefix
         if [[ "$ARCH" == "arm64" ]]; then
@@ -628,23 +623,15 @@ install_core_packages() {
         else
             brew_prefix="/usr/local"
         fi
-
         if [[ -x "$brew_prefix/bin/stow" ]]; then
             STOW_AVAILABLE=true
-            log "Stow verified at: $brew_prefix/bin/stow"
         else
             warn "stow not found at $brew_prefix/bin/stow after installation"
-            log "brew_prefix: $brew_prefix"
-            log "PATH: $PATH"
-            # List what's actually in the bin directory
-            log "Homebrew bin contents: $(ls "$brew_prefix/bin/" 2>&1 | grep -i stow || echo 'stow not found')"
         fi
     elif command -v stow &> /dev/null; then
         STOW_AVAILABLE=true
-        log "Stow is now available at: $(command -v stow)"
     else
         warn "stow installation may have failed - not found in PATH"
-        log "PATH: $PATH"
     fi
 
     track_success "Core Packages"
@@ -1434,17 +1421,10 @@ stow_package() {
 stow_dotfiles() {
     local packages=("$@")
 
-    log "stow_dotfiles: starting with packages: ${packages[*]}"
-
     # Verify stow is available before attempting to link
     require_stow
 
     info "Linking configuration files with Stow..."
-    log "Stowing packages: ${packages[*]}"
-    log "DOTFILES_DIR=$DOTFILES_DIR"
-    log "HOME=$HOME"
-    log "which stow: $(which stow 2>&1 || echo 'not found')"
-    log "stow version: $(stow --version 2>&1 | head -1 || echo 'failed')"
 
     local failed=false
     for pkg in "${packages[@]}"; do
@@ -1454,25 +1434,17 @@ stow_dotfiles() {
     done
 
     # Verify key symlinks were created
-    info "Verifying stowed symlinks..."
     local verify_failed=false
     for pkg in "${packages[@]}"; do
         case "$pkg" in
             zsh)
-                if [[ -L "$HOME/.zshrc" ]]; then
-                    log "Verified: ~/.zshrc -> $(readlink "$HOME/.zshrc")"
-                else
+                if [[ ! -L "$HOME/.zshrc" ]]; then
                     warn "Verification failed: ~/.zshrc is not a symlink"
-                    log "~/.zshrc exists: $([[ -e "$HOME/.zshrc" ]] && echo yes || echo no)"
-                    log "~/.zshrc is file: $([[ -f "$HOME/.zshrc" ]] && echo yes || echo no)"
-                    log "Home directory contents: $(ls -la "$HOME" 2>&1 | head -20)"
                     verify_failed=true
                 fi
                 ;;
             git)
-                if [[ -L "$HOME/.gitconfig" ]]; then
-                    log "Verified: ~/.gitconfig -> $(readlink "$HOME/.gitconfig")"
-                else
+                if [[ ! -L "$HOME/.gitconfig" ]]; then
                     warn "Verification failed: ~/.gitconfig is not a symlink"
                     verify_failed=true
                 fi
@@ -1732,23 +1704,17 @@ run_installation() {
 
         # Run install function if specified
         if [[ -n "$func" ]]; then
-            log "Running install function: $func"
             "$func" || true  # Continue on failure, we track it
-            log "Completed install function: $func"
         fi
 
         # Add stow package if specified
         if [[ -n "$stow_pkg" ]]; then
             stow_pkgs+=("$stow_pkg")
-            log "Added stow package: $stow_pkg"
         fi
     done
 
-    log "=== Install loop completed, preparing to stow ==="
-
     # Stow all selected packages
     info "Collected stow packages: ${stow_pkgs[*]:-none}"
-    log "Stow packages to process: ${stow_pkgs[*]:-none}"
     if [[ ${#stow_pkgs[@]} -gt 0 ]]; then
         if [[ "$DRY_RUN" == true ]]; then
             echo -e "  ${DIM}[dry-run] Would stow: ${stow_pkgs[*]}${NC}"

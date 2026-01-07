@@ -38,6 +38,22 @@ The installer presents an interactive menu with all options selected by default:
 
 **Controls:** Arrow keys or `j`/`k` to navigate, `space`/`enter` to toggle, `a` to select all, `n` to select none, `i` to install, `q` to quit.
 
+### Headless Mode
+
+For automation/CI, use `--yes` to skip the interactive menu and install everything:
+
+```bash
+./install.sh --yes
+```
+
+### Uninstalling
+
+To remove all stowed dotfiles and optionally installed packages:
+
+```bash
+./uninstall.sh
+```
+
 ## What's Included
 
 ### Core Packages
@@ -45,6 +61,7 @@ The installer presents an interactive menu with all options selected by default:
 - **stow** - Symlink farm manager for dotfiles
 - **curl/wget** - File transfer utilities
 - **coreutils** - GNU core utilities (macOS)
+- **bash** - Updated Bash 5.x (macOS ships with 3.2)
 
 ### CLI Tools
 - **zsh** - Shell (latest from Homebrew)
