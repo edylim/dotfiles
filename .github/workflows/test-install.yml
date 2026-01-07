@@ -87,8 +87,9 @@ jobs:
             exit 1
           else
             echo "✗ ~/.zshrc does not exist"
-            echo "DEBUG: Checking install log for stow info..."
-            grep -i stow install.log 2>/dev/null || echo "No stow entries in log"
+            echo "=== FULL INSTALL LOG ==="
+            cat install.log 2>/dev/null || echo "No install.log found"
+            echo "=== END LOG ==="
             exit 1
           fi
           if [[ -L ~/.gitconfig ]]; then
@@ -181,8 +182,9 @@ jobs:
             exit 1
           else
             echo "✗ ~/.zshrc does not exist"
-            echo "DEBUG: Checking install log for stow info..."
-            grep -i stow install.log 2>/dev/null || echo "No stow entries in log"
+            echo "=== FULL INSTALL LOG ==="
+            cat install.log 2>/dev/null || echo "No install.log found"
+            echo "=== END LOG ==="
             exit 1
           fi
           if [[ -L ~/.gitconfig ]]; then
