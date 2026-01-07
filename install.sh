@@ -272,22 +272,31 @@ validate_dependencies() {
 
 # Verify stow is available before attempting to stow
 require_stow() {
+    log "require_stow: checking for stow..."
     hash -r 2>/dev/null || true  # Refresh command cache
-    if command -v stow &> /dev/null; then
-        return 0
-    fi
-    # Try common Homebrew locations as fallback
+
+    # First, check explicit paths (more reliable than command -v in CI)
     local stow_path=""
     if [[ -x /opt/homebrew/bin/stow ]]; then
         stow_path="/opt/homebrew/bin/stow"
     elif [[ -x /usr/local/bin/stow ]]; then
         stow_path="/usr/local/bin/stow"
+    elif command -v stow &> /dev/null; then
+        stow_path="$(command -v stow)"
     fi
+
     if [[ -n "$stow_path" ]]; then
-        export PATH="${stow_path%/*}:$PATH"
-        log "Added ${stow_path%/*} to PATH for stow"
+        # Ensure the directory containing stow is in PATH
+        local stow_dir="${stow_path%/*}"
+        if [[ ":$PATH:" != *":$stow_dir:"* ]]; then
+            export PATH="$stow_dir:$PATH"
+            log "require_stow: added $stow_dir to PATH"
+        fi
+        log "require_stow: found stow at $stow_path"
         return 0
     fi
+
+    log "require_stow: stow not found anywhere"
     error "GNU Stow is required but not installed. Please install Core Packages first."
 }
 
@@ -564,6 +573,13 @@ install_core_packages() {
 
     case "$OS" in
         macos)
+            # Ensure Homebrew paths are in PATH before and after installing
+            # Critical for GitHub Actions where brew shellenv may not have run
+            if [[ "$ARCH" == "arm64" ]]; then
+                export PATH="/opt/homebrew/bin:/opt/homebrew/sbin:$PATH"
+            else
+                export PATH="/usr/local/bin:/usr/local/sbin:$PATH"
+            fi
             brew_install git stow curl wget coreutils || failed=true
             ;;
         arch)
@@ -595,27 +611,33 @@ install_core_packages() {
 
     # Update stow availability flag and verify installation
     hash -r 2>/dev/null || true  # Ensure bash finds newly installed commands
-    if command -v stow &> /dev/null; then
+
+    # On macOS, explicitly verify stow at the expected Homebrew location
+    # The hash -r and command -v approach is unreliable in some CI environments
+    if [[ "$OS" == "macos" ]]; then
+        local brew_prefix
+        if [[ "$ARCH" == "arm64" ]]; then
+            brew_prefix="/opt/homebrew"
+        else
+            brew_prefix="/usr/local"
+        fi
+
+        if [[ -x "$brew_prefix/bin/stow" ]]; then
+            STOW_AVAILABLE=true
+            log "Stow verified at: $brew_prefix/bin/stow"
+        else
+            warn "stow not found at $brew_prefix/bin/stow after installation"
+            log "brew_prefix: $brew_prefix"
+            log "PATH: $PATH"
+            # List what's actually in the bin directory
+            log "Homebrew bin contents: $(ls "$brew_prefix/bin/" 2>&1 | grep -i stow || echo 'stow not found')"
+        fi
+    elif command -v stow &> /dev/null; then
         STOW_AVAILABLE=true
         log "Stow is now available at: $(command -v stow)"
     else
-        # Try to find stow at common Homebrew locations
-        local stow_path=""
-        if [[ -x /opt/homebrew/bin/stow ]]; then
-            stow_path="/opt/homebrew/bin/stow"
-        elif [[ -x /usr/local/bin/stow ]]; then
-            stow_path="/usr/local/bin/stow"
-        fi
-        if [[ -n "$stow_path" ]]; then
-            warn "stow installed but not in PATH. Found at: $stow_path"
-            # Add Homebrew bin to PATH if not present
-            export PATH="${stow_path%/*}:$PATH"
-            STOW_AVAILABLE=true
-            log "Added ${stow_path%/*} to PATH"
-        else
-            warn "stow installation may have failed - not found in PATH or standard locations"
-            log "PATH: $PATH"
-        fi
+        warn "stow installation may have failed - not found in PATH"
+        log "PATH: $PATH"
     fi
 
     track_success "Core Packages"
@@ -1389,6 +1411,8 @@ stow_package() {
 stow_dotfiles() {
     local packages=("$@")
 
+    log "stow_dotfiles: starting with packages: ${packages[*]}"
+
     # Verify stow is available before attempting to link
     require_stow
 
@@ -1396,6 +1420,8 @@ stow_dotfiles() {
     log "Stowing packages: ${packages[*]}"
     log "DOTFILES_DIR=$DOTFILES_DIR"
     log "HOME=$HOME"
+    log "which stow: $(which stow 2>&1 || echo 'not found')"
+    log "stow version: $(stow --version 2>&1 | head -1 || echo 'failed')"
 
     local failed=false
     for pkg in "${packages[@]}"; do

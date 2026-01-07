@@ -18,6 +18,9 @@ jobs:
       - name: Dry run install
         run: ./install.sh --dry-run --yes
 
+      - name: Clear log before actual install
+        run: rm -f install.log .install-state
+
       - name: Check and backup pre-existing dotfiles
         run: |
           echo "Checking for pre-existing dotfiles that might conflict..."
@@ -40,8 +43,11 @@ jobs:
       - name: Show install log
         if: always()
         run: |
-          echo "=== Install Log ==="
-          cat install.log 2>/dev/null || echo "No install.log found"
+          echo "=== Install Log (last 100 lines) ==="
+          tail -100 install.log 2>/dev/null || echo "No install.log found"
+          echo ""
+          echo "=== Stow-related entries ==="
+          grep -i stow install.log 2>/dev/null || echo "No stow entries"
           echo ""
           echo "=== Install State ==="
           cat .install-state 2>/dev/null || echo "No state file found"
@@ -136,8 +142,11 @@ jobs:
       - name: Show install log
         if: always()
         run: |
-          echo "=== Install Log ==="
-          cat install.log 2>/dev/null || echo "No install.log found"
+          echo "=== Install Log (last 100 lines) ==="
+          tail -100 install.log 2>/dev/null || echo "No install.log found"
+          echo ""
+          echo "=== Stow-related entries ==="
+          grep -i stow install.log 2>/dev/null || echo "No stow entries"
           echo ""
           echo "=== Install State ==="
           cat .install-state 2>/dev/null || echo "No state file found"
