@@ -5,8 +5,22 @@
 # Exit on error, undefined vars, and pipe failures
 set -euo pipefail
 
-# Note: This script uses indexed arrays (bash 3.2+), not associative arrays
-# macOS ships with bash 3.2, so we maintain compatibility
+# --- Re-exec with newer bash if available ---
+# This script requires bash 4.3+ for namerefs (local -n)
+# macOS ships with bash 3.2, so use Homebrew's bash if available
+if [[ -z "${DOTFILES_REEXEC:-}" ]]; then
+    for bash_path in /opt/homebrew/bin/bash /usr/local/bin/bash; do
+        if [[ -x "$bash_path" ]]; then
+            # Check if this bash supports namerefs (bash 4.3+)
+            if "$bash_path" -c 'f() { local -n x=y; }; f' 2>/dev/null; then
+                export DOTFILES_REEXEC=1
+                exec "$bash_path" "$0" "$@"
+            fi
+        fi
+    done
+    # If we get here, no suitable bash found - try to continue anyway
+    echo "[WARN] No bash 4.3+ found. Some features may not work." >&2
+fi
 
 # --- Global Variables ---
 DOTFILES_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
