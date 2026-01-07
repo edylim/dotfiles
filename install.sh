@@ -1160,7 +1160,12 @@ install_awrit() {
     local awrit_installer
     awrit_installer=$(mktemp)
     if curl -fsS https://chase.github.io/awrit/get -o "$awrit_installer"; then
-        DOWNLOAD_TO="$AW_INSTALL_DIR" bash "$awrit_installer"
+        if ! DOWNLOAD_TO="$AW_INSTALL_DIR" bash "$awrit_installer"; then
+            rm -f "$awrit_installer"
+            track_failure "Awrit" "installer script failed"
+            warn "Awrit installer script failed"
+            return 1
+        fi
         rm -f "$awrit_installer"
     else
         rm -f "$awrit_installer"
@@ -1170,7 +1175,7 @@ install_awrit() {
     fi
 
     if [[ -f "$AW_INSTALL_DIR/dist/kitty.css" && ! -L "$AW_INSTALL_DIR/dist/kitty.css" ]]; then
-         rm "$AW_INSTALL_DIR/dist/kitty.css"
+         rm -f "$AW_INSTALL_DIR/dist/kitty.css"
     fi
 
     track_success "Awrit"
@@ -1196,12 +1201,12 @@ install_grumpyvim() {
             return 0
         else
             warn "Removing existing symlink at $NVIM_CONFIG_DIR..."
-            rm "$NVIM_CONFIG_DIR"
+            rm "$NVIM_CONFIG_DIR" || true
         fi
     fi
 
     if [[ -d "$NVIM_CONFIG_DIR" ]]; then
-        if [[ -d "$NVIM_CONFIG_DIR/.git" ]] && git -C "$NVIM_CONFIG_DIR" remote -v | grep -q "grumpyvim"; then
+        if [[ -d "$NVIM_CONFIG_DIR/.git" ]] && git -C "$NVIM_CONFIG_DIR" remote -v 2>/dev/null | grep -q "grumpyvim"; then
             info "GrumpyVim already cloned. Pulling latest..."
             if ! git_pull "$NVIM_CONFIG_DIR" --rebase; then
                 warn "Failed to update GrumpyVim, continuing with existing version"
@@ -1210,12 +1215,21 @@ install_grumpyvim() {
             warn "Existing Neovim config found. Backing up..."
             local backup_name
             backup_name="$NVIM_CONFIG_DIR.bak.$(date +%F-%H%M%S)-$$"
-            mv "$NVIM_CONFIG_DIR" "$backup_name"
+            mv "$NVIM_CONFIG_DIR" "$backup_name" || {
+                track_failure "GrumpyVim" "failed to backup existing config"
+                return 1
+            }
             info "Backed up to: $backup_name"
-            git_clone https://github.com/edylim/grumpyvim.git "$NVIM_CONFIG_DIR"
+            if ! git_clone https://github.com/edylim/grumpyvim.git "$NVIM_CONFIG_DIR"; then
+                track_failure "GrumpyVim" "clone failed after backup"
+                return 1
+            fi
         fi
     else
-        git_clone https://github.com/edylim/grumpyvim.git "$NVIM_CONFIG_DIR"
+        if ! git_clone https://github.com/edylim/grumpyvim.git "$NVIM_CONFIG_DIR"; then
+            track_failure "GrumpyVim" "clone failed"
+            return 1
+        fi
     fi
 
     # Run GrumpyVim's installer if it exists
@@ -1223,7 +1237,9 @@ install_grumpyvim() {
     if [[ -f "$NVIM_CONFIG_DIR/install.sh" ]]; then
         info "Running GrumpyVim installer..."
         chmod +x "$NVIM_CONFIG_DIR/install.sh"
-        bash "$NVIM_CONFIG_DIR/install.sh"
+        if ! bash "$NVIM_CONFIG_DIR/install.sh"; then
+            warn "GrumpyVim installer failed, but base config is in place"
+        fi
     fi
 
     track_success "GrumpyVim"
