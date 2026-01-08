@@ -1,0 +1,20 @@
+{
+  "model": "opus",
+  "enabledPlugins": {
+    "lua-lsp@claude-plugins-official": true,
+    "clangd-lsp@claude-plugins-official": true
+  },
+  "hooks": {
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '\\a' > /dev/tty"
+          }
+        ]
+      }
+    ]
+  }
+}

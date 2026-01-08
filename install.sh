@@ -100,6 +100,7 @@ declare -a MENU_CONFIG=(
     "linting|Linting Configs||linting|false|core"
     "bin|Bin Scripts||bin|false|core"
     "gitconfig|Git Config||git|false|core"
+    "claudeconfig|Claude Code Config||claude|false|ai"
 )
 
 # Get menu index by ID
