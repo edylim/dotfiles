@@ -5,13 +5,13 @@
     "clangd-lsp@claude-plugins-official": true
   },
   "hooks": {
-    "Notification": [
+    "PermissionRequest": [
       {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "printf '\\a'"
+            "command": "printf '\\a' > /dev/tty"
           }
         ]
       }
