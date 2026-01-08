@@ -11,3 +11,6 @@
 install.log
 install.log.old
 .install-state
+
+# Local AI assistant config
+CLAUDE.md
