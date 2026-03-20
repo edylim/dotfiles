@@ -1,9 +1,4 @@
 {
-  "model": "opus",
-  "enabledPlugins": {
-    "lua-lsp@claude-plugins-official": true,
-    "clangd-lsp@claude-plugins-official": true
-  },
   "hooks": {
     "PermissionRequest": [
       {
@@ -15,6 +10,75 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command // empty' | grep -qiE '(rm\\s+-rf\\s+[/~]|git\\s+push\\s+.*--force|git\\s+push\\s+-f|drop\\s+table|drop\\s+database|truncate\\s+table|git\\s+reset\\s+--hard|git\\s+clean\\s+-fd|> /dev/sd|mkfs\\.|dd\\s+if=)' && echo '{\"decision\": \"block\", \"reason\": \"Destructive command blocked by safety hook. Run it manually if intentional.\"}' && exit 0 || exit 0"
+          }
+        ]
+      }
     ]
+  },
+  "defaultMode": "acceptEdits",
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(git *)",
+      "Bash(yarn *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(bundle *)",
+      "Bash(just *)",
+      "Bash(node *)",
+      "Bash(ruby *)",
+      "Bash(python3 *)",
+      "Bash(pip3 *)",
+      "Bash(kitty *)",
+      "WebFetch(domain:github.com)",
+      "Bash(ls *)",
+      "Bash(which *)",
+      "Bash(cat *)",
+      "Bash(wc *)",
+      "Bash(file *)",
+      "Bash(head *)",
+      "Bash(tail *)",
+      "Bash(find *)",
+      "Bash(mkdir *)",
+      "Bash(pwd)",
+      "Bash(jq *)"
+    ],
+    "deny": [
+      "Read(~/.ssh/**)",
+      "Edit(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Edit(~/.aws/**)",
+      "Read(~/.gnupg/**)",
+      "Edit(~/.gnupg/**)",
+      "Read(~/.kube/**)",
+      "Edit(~/.kube/**)",
+      "Read(~/.netrc)",
+      "Edit(~/.netrc)",
+      "Read(**/.env)",
+      "Edit(**/.env)",
+      "Read(**/.env.*)",
+      "Edit(**/.env.*)"
+    ]
+  },
+  "enabledPlugins": {
+    "lua-lsp@claude-plugins-official": true,
+    "clangd-lsp@claude-plugins-official": true
+  },
+  "enableAllProjectMcpServers": false,
+  "effortLevel": "high",
+  "env": {
+    "DISABLE_TELEMETRY": "1",
+    "DISABLE_ERROR_REPORTING": "1",
+    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "70"
   }
 }
