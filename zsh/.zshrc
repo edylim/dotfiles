@@ -1,12 +1,12 @@
+# Set terminal title (only in terminals that support emoji)
+[[ "$TERM_PROGRAM" == @(kitty|iTerm*|Apple_Terminal|vscode) || "$TERM" == "xterm-kitty" ]] && echo -ne "\e]0;🐈\a"
+
 # Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
-
-# Set terminal title (only in terminals that support emoji)
-[[ "$TERM_PROGRAM" == @(kitty|iTerm*|Apple_Terminal|vscode) || "$TERM" == "xterm-kitty" ]] && echo -ne "\e]0;🐈\a"
 
 # Source Prezto
 if [[ -s "${ZDOTDIR:-$HOME}/.zprezto/init.zsh" ]]; then
@@ -129,8 +129,9 @@ fi
 [ "$TERM" = "xterm-kitty" ] && alias ssh="kitty +kitten ssh"
 
 # mise - runtime version manager (Node.js, Python, etc.)
+# Redirect stderr to avoid warnings (e.g. missing tool versions) breaking p10k instant prompt
 if command -v mise &> /dev/null; then
-  eval "$(mise activate zsh)"
+  eval "$(mise activate zsh 2>/dev/null)"
 fi
 
 # onefetch - git repository greeter (opt-in, set ONEFETCH_ON_CD=1 to enable)
