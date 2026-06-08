@@ -90,6 +90,7 @@ declare -a MENU_CONFIG=(
     "media|Media Tools (ffmpeg, imagemagick, poppler)|install_media_tools||false|core"
     "mise|Mise & Runtimes (Node.js LTS, Python)|install_mise_and_runtimes|mise|false|core"
     "ai|AI Tools (claude, gemini-cli)|install_ai_tools||false|core,mise"
+    "aws|AWS Tools (awscli, okta-aws-cli, saml2aws, session-manager-plugin)|install_aws_tools||false|core"
     "yarn|Yarn|install_yarn|yarn|false|mise"
     "kitty|Kitty Terminal|install_kitty|kitty|false|core"
     "chrome|Google Chrome|install_chrome||false|core"
@@ -795,6 +796,38 @@ install_ai_tools() {
         warn "No AI tools were installed (missing dependencies)."
         return 1
     fi
+}
+
+install_aws_tools() {
+    info "Installing AWS tools..."
+    local failed=false
+
+    case "$OS" in
+        macos)
+            brew_install awscli okta-aws-cli saml2aws || failed=true
+            cask_install session-manager-plugin
+            ;;
+        debian|arch)
+            # No reliable distro packages for okta-aws-cli/saml2aws/session-manager-plugin;
+            # don't guess package names — point at the official installers instead.
+            warn "AWS tools auto-install is macOS-only; install these manually on Linux:"
+            echo -e "  ${DIM}awscli v2:              https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html${NC}"
+            echo -e "  ${DIM}session-manager-plugin: https://docs.aws.amazon.com/systems-manager/latest/userguide/session-manager-working-with-install-plugin.html${NC}"
+            echo -e "  ${DIM}saml2aws:               https://github.com/Versent/saml2aws/releases${NC}"
+            echo -e "  ${DIM}okta-aws-cli:           https://github.com/okta/okta-aws-cli/releases${NC}"
+            track_skip "AWS Tools" "manual install on Linux"
+            return 0
+            ;;
+    esac
+
+    if [[ "$failed" == true ]]; then
+        track_failure "AWS Tools" "some packages failed"
+        warn "Some AWS tools may not have installed correctly"
+        return 1
+    fi
+
+    track_success "AWS Tools"
+    success "AWS tools installed."
 }
 
 install_git_tools() {
