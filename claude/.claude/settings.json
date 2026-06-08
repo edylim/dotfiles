@@ -1,29 +1,16 @@
 {
-  "hooks": {
-    "PermissionRequest": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "printf '\\a' > /dev/tty"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "jq -r '.tool_input.command // empty' | grep -qiE '(rm\\s+-rf\\s+[/~]|git\\s+push\\s+.*--force|git\\s+push\\s+-f|drop\\s+table|drop\\s+database|truncate\\s+table|git\\s+reset\\s+--hard|git\\s+clean\\s+-fd|> /dev/sd|mkfs\\.|dd\\s+if=)' && echo '{\"decision\": \"block\", \"reason\": \"Destructive command blocked by safety hook. Run it manually if intentional.\"}' && exit 0 || exit 0"
-          }
-        ]
-      }
-    ]
+  "env": {
+    "DISABLE_TELEMETRY": "1",
+    "DISABLE_ERROR_REPORTING": "1",
+    "DISABLE_FEEDBACK_COMMAND": "1",
+    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "70"
   },
-  "defaultMode": "acceptEdits",
+  "attribution": {
+    "commit": "",
+    "pr": ""
+  },
   "permissions": {
     "allow": [
       "WebSearch",
@@ -68,17 +55,56 @@
       "Edit(**/.env.*)"
     ]
   },
+  "enableAllProjectMcpServers": false,
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"BEHAVIORAL RULES (injected every turn): 1) NEVER GUESS — when stuck, STOP and research: WebSearch, WebFetch, read docs/source. Do NOT chain speculative fixes. 2) Use Agent tool (subagent_type=Explore) for deep codebase research. Use background agents for long investigations. 3) NO SHORTCUTS — find root cause. Quick fixes that paper over issues are worse than no fix. If about to say \\\"this should work\\\" without verifying — STOP. 4) Re-read CLAUDE.md rules if uncertain.\"}}'"
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '\\a' > /dev/tty"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command // empty' | grep -qiE '(rm\\s+-rf\\s+[/~]|git\\s+push\\s+.*--force|git\\s+push\\s+-f|drop\\s+table|drop\\s+database|truncate\\s+table|git\\s+reset\\s+--hard|git\\s+clean\\s+-fd|> /dev/sd|mkfs\\.|dd\\s+if=)' && echo '{\"decision\": \"block\", \"reason\": \"Destructive command blocked by safety hook. Run it manually if intentional.\"}' && exit 0 || exit 0"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command // empty' | grep -qiE '^git\\s+commit' && { msg=$(git log --format=%B -n1 HEAD 2>/dev/null); echo \"$msg\" | grep -qi 'Co-Authored-By' && { echo \"$msg\" | sed '/^Co-Authored-By:/d' | sed '/^$/N;/^\\n$/d' | git commit --amend -F - >/dev/null 2>&1 && echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"VIOLATION: Co-Authored-By was auto-stripped from your commit. NEVER add AI attribution.\"}}'; } || true; } || true"
+          }
+        ]
+      }
+    ]
+  },
   "enabledPlugins": {
     "lua-lsp@claude-plugins-official": true,
     "clangd-lsp@claude-plugins-official": true
   },
-  "enableAllProjectMcpServers": false,
   "effortLevel": "high",
-  "env": {
-    "DISABLE_TELEMETRY": "1",
-    "DISABLE_ERROR_REPORTING": "1",
-    "CLAUDE_CODE_DISABLE_FEEDBACK_SURVEY": "1",
-    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "70"
-  }
+  "defaultMode": "acceptEdits"
 }
