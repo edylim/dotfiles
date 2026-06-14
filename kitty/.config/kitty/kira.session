@@ -1,0 +1,29 @@
+# Kira cockpit — kitty session (single-window workspace)
+# Launch: kitty --session ~/.config/kitty/kira.session   (or the `kira-desktop` command)
+#
+# Layout (matches the 2560x1440 cockpit):
+#   ┌─────────────┬──────────────┬──────────────┐
+#   │ kira avatar │   term 1     │   term 2     │
+#   ├─────────────┼──────────────┴──────────────┤
+#   │ kira chat   │        grumpyvim (nvim)      │
+#   └─────────────┴─────────────────────────────┘
+
+layout splits
+
+# 1. Top-left — Kira's avatar (FlashHead streamed via the kitty graphics protocol)
+launch --var window=avatar --title "kira avatar" /Users/ed/projects/anima/terminal/kira-avatar --host REDACTED-B70
+
+# 2. Vsplit — give the right region 72% so the left column is ~square (the
+#    avatar pane ends up 1:1, so the square avatar fills it exactly)
+launch --location=vsplit --bias=72 --var window=misc1 --title "term 1"
+
+# 3. Hsplit the right region — grumpyvim takes the bottom 66%
+launch --location=hsplit --bias=66 --title grumpyvim nvim
+
+# 4. Back to misc1, vsplit — misc terminal 2 (top right)
+focus_matching_window var:window=misc1
+launch --location=vsplit --bias=50 --var window=misc2 --title "term 2"
+
+# 5. Back to the avatar column, hsplit — Kira Code TUI (kiracode) takes the bottom-left
+focus_matching_window var:window=avatar
+launch --location=hsplit --bias=50 --title "kira" /Users/ed/bin/kiracode

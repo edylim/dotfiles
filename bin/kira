@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Open the whole Kira app: a single 2560x1440 kitty window with the 5-pane cockpit
+# (avatar top-left, Kira Code TUI bottom-left, two terminals + grumpyvim right).
+exec kitty \
+  -o initial_window_width=2560 \
+  -o initial_window_height=1440 \
+  --session "$HOME/.config/kitty/kira.session" "$@"
