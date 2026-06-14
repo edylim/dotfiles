@@ -92,6 +92,14 @@ To remove all stowed dotfiles and optionally installed packages:
 - **claude** - Claude Code CLI
 - **gemini-cli** - Google Gemini CLI
 
+### AWS Tools
+- **awscli** - AWS command-line interface
+- **okta-aws-cli** - Okta-federated AWS credentials
+- **saml2aws** - SAML-based AWS credentials
+- **session-manager-plugin** - AWS SSM Session Manager plugin (macOS cask)
+
+> macOS only via Homebrew; on Linux install from the official sources (see `install_aws_tools`).
+
 ### Development
 - **mise** - Runtime version manager (Node.js, Python)
 - **yarn** - Package manager

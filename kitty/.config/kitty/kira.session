@@ -1,0 +1,47 @@
+# Kira cockpit — kitty session (single-window workspace)
+# Launch: kitty --session ~/.config/kitty/kira.session   (or the `kira` command)
+#
+# Layout (2560x1440 cockpit). The top-left avatar region is split three ways:
+# a narrow left gauge strip, the square avatar, and a full-width text strip.
+#   ┌──┬──────────┬──────────────┬──────────────┐
+#   │G │  avatar  │   term 1     │   term 2     │
+#   │A │   1:1    │              │              │
+#   ├──┴──────────┼──────────────┴──────────────┤
+#   │ text strip  │                             │
+#   ├─────────────┤        grumpyvim (nvim)     │
+#   │ kira code    │                             │
+#   └─────────────┴─────────────────────────────┘
+#
+# Build order is deliberate: the gauge pane seeds the whole avatar region so
+# the text strip (hsplit) spans its full width, then the avatar is vsplit to
+# the right of the gauges. Panes auto-fit, so the avatar restreams to size.
+
+layout splits
+
+# 1. Seed pane — becomes the narrow gauge strip on the left of the avatar region.
+launch --var window=gauge --title "kira gauges" /Users/ed/projects/anima/terminal/kira-stats --mode gauges --host REDACTED-B70
+
+# 2. Vsplit — right region gets 72% so the left column is ~square.
+launch --location=vsplit --bias=72 --var window=misc1 --title "term 1"
+
+# 3. Hsplit the right region — grumpyvim takes the bottom 66%.
+launch --location=hsplit --bias=66 --title grumpyvim nvim
+
+# 4. Back to misc1 — vsplit for the second top-right terminal.
+focus_matching_window var:window=misc1
+launch --location=vsplit --bias=50 --var window=misc2 --title "term 2"
+
+# 5. Back to the left column — hsplit so Kira Code takes the bottom-left half.
+focus_matching_window var:window=gauge
+launch --location=hsplit --bias=50 --var window=kiracode --title "kira" /Users/ed/bin/kiracode
+
+# 6. Subdivide the top-left region: text strip takes the bottom 25% (full width).
+focus_matching_window var:window=gauge
+launch --location=hsplit --bias=25 --var window=textstrip --title "kira text" /Users/ed/projects/anima/terminal/kira-stats --mode text --host REDACTED-B70
+
+# 7. Split the remaining top region: avatar takes the right 75%, gauges keep left 25%.
+focus_matching_window var:window=gauge
+launch --location=vsplit --bias=75 --var window=avatar --title "kira avatar" /Users/ed/projects/anima/terminal/kira-avatar --host REDACTED-B70
+
+# Land focus in Kira Code.
+focus_matching_window var:window=kiracode

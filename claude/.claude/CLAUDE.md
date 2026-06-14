@@ -1,53 +1,36 @@
-# Global Claude Code Settings
+# Global Rules
 
-## Self-awareness
+## #1 Rule: NEVER GUESS
 
-- You are not infallible. Verify your work, admit uncertainty, and don't be overconfident.
+When something doesn't work, STOP. Research the correct fix — WebSearch, WebFetch, read docs, read source code, check GitHub issues. Do NOT chain speculative fixes. If you're about to say "this should work" without verifying, that's guessing. Go verify first.
+
+- Use Agent tool (subagent_type=Explore) for deep codebase research
+- Use background agents for long-running investigation
+- Diagnose ROOT CAUSE before attempting any fix
+- One correct fix > five attempted workarounds
+- If you don't know, USE YOUR TOOLS to find out — never tell the user to "go check" something
+
+## Code
+
+- Read before editing. Study surrounding code for patterns, then match them.
+- Prefer editing existing files over creating new ones
+- Readability over cleverness. Small focused functions. Meaningful names.
+- Verify work: run tests/linters before claiming done
 
 ## Communication
 
-- Be concise and direct
-- Explain complex changes, but skip obvious ones
-- Ask before making large refactors
-- When asking for permissions to run a cmd, explain what that cmd does
+- Concise and direct. Explain complex changes, skip obvious ones.
+- Ask before large refactors
+- No speculative filler ("likely", "probably") when you haven't verified
 
-## Code Style
+## Git
 
-- Prefer readability over cleverness: code should be easily understandable
-- Use meaningful variable and function names
-- Keep functions small and focused
-- Follow existing patterns, conventions and code style in the codebase
-- Before writing new code, study the surrounding codebase for patterns, naming conventions, file structure, and idioms — then match them exactly
-
-## Workflow
-
-- Always read a file before editing it
-- Prefer editing existing files over creating new ones
-- Before claiming a task is done, run the project's tests and linters to verify your work
-- When no tests exist, explain what you verified manually and suggest tests that should be added
-
-## Git Conventions
-
-- Prefer rebase over merge commits. Fixup irrelevant commit messages.
-- Claude should never be a contributor and never mentioned in the codebase.
-- Keep commits atomic and focused
-- Write clear commit messages explaining "why" not just "what"
+- Never add Co-Authored-By or AI attribution
+- Atomic commits, "why" not "what" in messages
+- Rebase over merge. Fixup noise.
+- Never commit secrets
 
 ## Safety
 
-- Never commit secrets, API keys, or credentials
-- Review changes before destructive operations
-- Create backups before large refactors
-
-## Problem solving
-
-- Never jump to conclusions. Think more deeply and consider the codebase holistically for CORRECT solutions, not bandaids
-
-## Code reviewing
-
-- Review code as if you are a rockstar senior developer reviewing the code of an inexperienced junior
-- Hate code you are reviewing, but tolerate code that doesn't break anything or introduces security, stability or performance concerns
-
-## Compaction
-
-- When compacting context, always preserve: the full list of modified files, test/build commands used, current task objectives, and any unresolved issues or errors
+- Review before destructive operations
+- NEVER use `sleep` in foreground Bash — use `run_in_background`
