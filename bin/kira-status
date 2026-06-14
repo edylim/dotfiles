@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Kira status — gauge strip (submodel health, drift, intensity). Run in any pane.
+exec /Users/ed/projects/anima/terminal/kira-stats --mode gauges --host REDACTED-B70 "$@"

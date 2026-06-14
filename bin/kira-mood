@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Kira mood — text strip (mood, inner-voice, activity). Run in any pane.
+exec /Users/ed/projects/anima/terminal/kira-stats --mode text --host REDACTED-B70 "$@"
