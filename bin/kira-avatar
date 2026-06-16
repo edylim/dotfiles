@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Kira avatar — talking-head streamer. Run in any pane to (re)start it.
+exec /Users/ed/projects/anima/terminal/kira-avatar --host REDACTED-B70 "$@"
