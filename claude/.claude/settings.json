@@ -162,6 +162,24 @@
             "command": "node /Users/ed/.claude/hooks/session-rules.js"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.ai-memory/sync.sh"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash $HOME/.ai-memory/sync.sh"
+          }
+        ]
       }
     ]
   },
@@ -170,5 +188,7 @@
     "clangd-lsp@claude-plugins-official": true
   },
   "effortLevel": "high",
-  "defaultMode": "acceptEdits"
+  "defaultMode": "acceptEdits",
+  "skipWorkflowUsageWarning": true,
+  "autoMemoryDirectory": "~/.ai-memory"
 }

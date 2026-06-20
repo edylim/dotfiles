@@ -36,6 +36,12 @@ When something doesn't work, STOP. Research the correct fix — WebSearch, WebFe
 - Never commit secrets
 - Don't `scp`/`rsync` source files to another server — the same repo almost certainly exists there. Sync code via git: commit → push → pull on the remote.
 
+## Memory & Context
+
+- Persist durable state to `~/.ai-memory` **continuously, as you learn it** — decisions and their *why*, hard constraints ("don't restore X"), non-obvious gotchas, exact flags/paths, project state. Don't defer it.
+- Do NOT treat "prepare for a compact" as a real step. Compaction's summary is auto-generated from the full in-context conversation, and the full transcript stays retrievable — there is nothing to pre-stage. Auto-compact can also fire unannounced, so a manual prep ritual would be missed anyway.
+- Continuous memory is the only reliable safeguard across compactions *and* sessions (a summary is lossy compression). If asked to "prep for compact," instead just checkpoint anything critical to memory now — then proceed.
+
 ## Safety
 
 - Review before destructive operations
