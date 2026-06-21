@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 # Kira Code harness launcher. Repo location from ~/.kira/machine.env (KIRA_KIRACODE_ROOT).
 [ -f "$HOME/.kira/machine.env" ] && source "$HOME/.kira/machine.env"
-exec node "${KIRA_KIRACODE_ROOT:-$HOME/projects/kiracode}/bin/kira.js" "$@"
+exec node "${KIRA_KIRACODE_ROOT:-$HOME/projects/kiracode}/bin/kiracode.js" "$@"
