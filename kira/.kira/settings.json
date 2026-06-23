@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash $HOME/.ai-memory/sync.sh"
+            "command": "test -f $HOME/.ai-memory/sync.sh && bash $HOME/.ai-memory/sync.sh || true"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash $HOME/.ai-memory/sync.sh"
+            "command": "test -f $HOME/.ai-memory/sync.sh && bash $HOME/.ai-memory/sync.sh || true"
           }
         ]
       }
