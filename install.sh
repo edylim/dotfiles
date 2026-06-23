@@ -1041,6 +1041,15 @@ install_mise_and_runtimes() {
     mise use --global node@lts || warn "Failed to install Node.js"
     mise use --global python@3 || warn "Failed to install Python"  # Latest Python 3.x
 
+    # `mise activate` computes PATH at eval time from the THEN-active tools, and
+    # refreshes it via a prompt hook (_mise_hook) that never fires in this
+    # non-interactive installer. On a fresh machine the runtimes are installed
+    # AFTER activate, so they aren't on PATH yet → verify (and later `npm` for AI
+    # Tools) would wrongly fail. Put mise's shims dir on PATH directly — shims
+    # resolve the current global tool with no hook needed.
+    export PATH="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/shims:$PATH"
+    hash -r 2>/dev/null || true
+
     if verify_installed node && verify_installed python; then
         track_success "Mise & Runtimes"
         success "Mise and runtimes installed."
