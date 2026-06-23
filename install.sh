@@ -91,7 +91,7 @@ declare -a MENU_CONFIG=(
     "mise|Mise & Runtimes (Node.js LTS, Python)|install_mise_and_runtimes|mise|false|core"
     "ai|AI Tools (claude, gemini-cli)|install_ai_tools||false|core,mise"
     "aws|AWS Tools (awscli, okta-aws-cli, saml2aws, session-manager-plugin)|install_aws_tools||false|core"
-    "kira-studio|Kira Studio (in-terminal avatar + voice dev env, macOS)|install_kira_studio||true|core,mise"
+    "kira-studio|Kira Studio (in-terminal avatar + voice dev env, macOS)|install_kira_studio|kira|true|core,mise"
     "yarn|Yarn|install_yarn|yarn|false|mise"
     "kitty|Kitty Terminal|install_kitty|kitty|false|core"
     "chrome|Google Chrome|install_chrome||false|core"
