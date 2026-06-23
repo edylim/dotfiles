@@ -762,39 +762,40 @@ install_cli_tools() {
 
 install_ai_tools() {
     info "Installing AI CLI tools..."
+
+    # Both CLIs install globally via npm (all platforms). Homebrew's gemini-cli
+    # formula was deprecated 2026-06-18 as "unsupported"; @google/gemini-cli on
+    # npm is the maintained path, matching @anthropic-ai/claude-code.
+    if ! command -v npm &> /dev/null; then
+        warn "npm not found. Install Mise & Runtimes first for the AI CLIs."
+        track_skip "AI Tools" "npm not available"
+        return 1
+    fi
+
     local installed_something=false
-
-    case "$OS" in
-        macos)
-            brew_install gemini-cli && installed_something=true
-            ;;
-    esac
-
-    # Claude Code CLI (requires npm) - all platforms
-    if pkg_installed claude; then
-        echo -e "  ${DIM}claude already installed${NC}"
-        installed_something=true
-    elif command -v npm &> /dev/null; then
-        info "Installing Claude Code CLI..."
-        if [[ "$DRY_RUN" == true ]]; then
-            echo -e "  ${DIM}[dry-run] Would install: @anthropic-ai/claude-code${NC}"
+    # "npm package:command-to-detect-existing"
+    local tools=("@anthropic-ai/claude-code:claude" "@google/gemini-cli:gemini")
+    for entry in "${tools[@]}"; do
+        local pkg="${entry%%:*}" cmd="${entry##*:}"
+        if pkg_installed "$cmd"; then
+            echo -e "  ${DIM}$cmd already installed${NC}"
             installed_something=true
-        elif npm install -g @anthropic-ai/claude-code; then
+        elif [[ "$DRY_RUN" == true ]]; then
+            echo -e "  ${DIM}[dry-run] Would install: $pkg${NC}"
+            installed_something=true
+        elif npm install -g "$pkg"; then
             installed_something=true
         else
-            warn "Failed to install Claude Code CLI"
+            warn "Failed to install $pkg"
         fi
-    else
-        warn "npm not found. Install Mise & Runtimes first for Claude Code CLI."
-        track_skip "Claude CLI" "npm not available"
-    fi
+    done
 
     if [[ "$installed_something" == true ]]; then
         track_success "AI Tools"
         success "AI tools installed."
     else
         track_failure "AI Tools" "no tools installed"
-        warn "No AI tools were installed (missing dependencies)."
+        warn "No AI tools were installed (npm install failed)."
         return 1
     fi
 }
