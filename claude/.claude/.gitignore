@@ -1,0 +1,10 @@
+# Claude Code writes runtime state into ~/.claude (sessions, projects, history,
+# .claude.json, plugins, caches…). When this package is stow-FOLDED (i.e. ~/.claude
+# is a whole-dir symlink into here, which happens when ~/.claude didn't exist at
+# install time), all that runtime lands in the dotfiles tree and shows as untracked.
+# Ignore everything, then re-include only the config we actually version.
+/*
+!/.gitignore
+!/CLAUDE.md
+!/settings.json
+!/hooks/

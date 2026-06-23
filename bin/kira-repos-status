@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# kira-repos-status — fetch + report clean/in-sync state across the Kira project repos.
+# Read-only (fetch only). Skips repos that aren't present on this machine.
+#
+#   ✓  clean + in sync          ⚠ dirty   ↑/↓ ahead/behind upstream
+set -uo pipefail
+
+# Best-effort fetch timeout (macOS lacks `timeout`; use gtimeout if present).
+TO="$(command -v timeout || command -v gtimeout || true)"
+fetch() { if [[ -n "$TO" ]]; then "$TO" 25 git -C "$1" fetch "$2" -q 2>/dev/null; else git -C "$1" fetch "$2" -q 2>/dev/null; fi; }
+
+repos=(
+  "$HOME/projects/kiracode"
+  "$HOME/projects/anima"
+  "$HOME/projects/kira"
+  "${KIRA_STUDIO_ROOT:-$HOME/projects/kira-studio}"
+  "$HOME/.dotfiles"
+  "$HOME/.ai-memory"
+)
+
+printf '%-26s %-10s %-7s %s\n' "REPO" "BRANCH" "STATE" "behind/ahead"
+for d in "${repos[@]}"; do
+  name="$(basename "$d")"
+  if [[ ! -d "$d/.git" ]]; then printf '%-26s %s\n' "$name" "(absent)"; continue; fi
+  br="$(git -C "$d" branch --show-current 2>/dev/null)"
+  rem="$(git -C "$d" remote | head -1)"
+  [[ -n "$rem" ]] && fetch "$d" "$rem"
+  dirty="$(git -C "$d" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+  ab="$(git -C "$d" rev-list --left-right --count '@{u}...HEAD' 2>/dev/null || echo '?/?')"
+  behind="${ab%%[[:space:]]*}"; ahead="${ab##*[[:space:]]}"
+  state="✓ clean"
+  [[ "$dirty" != 0 ]] && state="⚠ $dirty dirty"
+  sync=""
+  [[ "$ab" == "?/?" ]] && sync="no-upstream"
+  [[ "$behind" =~ ^[0-9]+$ && "$behind" -gt 0 ]] && sync="↓$behind behind"
+  [[ "$ahead"  =~ ^[0-9]+$ && "$ahead"  -gt 0 ]] && sync="${sync:+$sync }↑$ahead ahead"
+  printf '%-26s %-10s %-7s %s\n' "$name" "$br" "$state" "${sync:-in-sync}"
+done
