@@ -91,6 +91,7 @@ declare -a MENU_CONFIG=(
     "mise|Mise & Runtimes (Node.js LTS, Python)|install_mise_and_runtimes|mise|false|core"
     "ai|AI Tools (claude, gemini-cli)|install_ai_tools||false|core,mise"
     "aws|AWS Tools (awscli, okta-aws-cli, saml2aws, session-manager-plugin)|install_aws_tools||false|core"
+    "kira-studio|Kira Studio (in-terminal avatar + voice dev env, macOS)|install_kira_studio||true|core,mise"
     "yarn|Yarn|install_yarn|yarn|false|mise"
     "kitty|Kitty Terminal|install_kitty|kitty|false|core"
     "chrome|Google Chrome|install_chrome||false|core"
@@ -828,6 +829,50 @@ install_aws_tools() {
 
     track_success "AWS Tools"
     success "AWS tools installed."
+}
+
+# Kira Studio: the in-terminal avatar + voice dev environment. Lives in its own
+# repo (private); we clone it and delegate to ITS install.sh (the single source
+# of truth for the studio runtime: kitty/tmux/neovim + python venv + kiracode +
+# ~/.kira/machine.env). anima (the engine) is a remote URL dependency, NOT
+# installed here — set KIRA_HOST in ~/.kira/machine.env afterward.
+install_kira_studio() {
+    info "Installing Kira Studio (in-terminal avatar + voice dev env)..."
+    local dir="${KIRA_STUDIO_ROOT:-$HOME/projects/kira-studio}"
+
+    if [[ "$DRY_RUN" == true ]]; then
+        echo -e "  ${DIM}[dry-run] Would clone edylim/kira-studio to $dir and run its install.sh${NC}"
+        return 0
+    fi
+
+    if [[ "$OS" != "macos" ]]; then
+        track_skip "Kira Studio" "macOS only (CoreAudio device-following)"
+        warn "Kira Studio is macOS-only; skipping."
+        return 0
+    fi
+
+    # Clone (private repo — needs SSH / gh access) or update in place.
+    if [[ -d "$dir/.git" ]]; then
+        info "kira-studio already cloned; pulling latest..."
+        git_pull "$dir" --rebase || warn "kira-studio pull failed; continuing with existing checkout"
+    else
+        mkdir -p "$(dirname "$dir")"
+        if ! git_clone "git@github.com:edylim/kira-studio.git" "$dir"; then
+            track_failure "Kira Studio" "clone failed (private repo — needs SSH/gh access)"
+            return 1
+        fi
+    fi
+
+    # Delegate to the studio's own installer (idempotent).
+    if [[ -f "$dir/install.sh" ]]; then
+        if ! bash "$dir/install.sh"; then
+            track_failure "Kira Studio" "studio install.sh failed"
+            return 1
+        fi
+    fi
+
+    track_success "Kira Studio"
+    success "Kira Studio installed."
 }
 
 install_git_tools() {
