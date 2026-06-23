@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 # Kira avatar — talking-head streamer. Run in any pane to (re)start it.
 [ -f "$HOME/.kira/machine.env" ] && source "$HOME/.kira/machine.env"
-exec "${KIRA_ANIMA_ROOT:-$HOME/projects/anima}/terminal/kira-avatar" "$@"
+exec "${KIRA_STUDIO_ROOT:-$HOME/projects/kira-studio}/kira-avatar" "$@"

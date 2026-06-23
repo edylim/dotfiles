@@ -1,48 +1,7 @@
 #!/usr/bin/env bash
-# Open the whole Kira Studio: one kitty window with the multi-pane workspace
-# (avatar + Kira Code TUI + gauges/text strips + terminals + grumpyvim).
-#
-# Layout + pane wiring is the canonical template in the anima repo
-# ($KIRA_ANIMA_ROOT/terminal/kira.session.template). Machine-specific values
-# (host, geometry, repo paths, voice socket) come from ~/.kira/machine.env. This
-# launcher is the only personal/orchestration piece — it ties the two together.
-
-# 1. Load this machine's config (host, ports, geometry, repo paths, voice socket).
-MACHINE_ENV="${KIRA_MACHINE_ENV:-$HOME/.kira/machine.env}"
-if [[ -f "$MACHINE_ENV" ]]; then
-  # shellcheck disable=SC1090
-  source "$MACHINE_ENV"
-else
-  echo "kira: no $MACHINE_ENV — using defaults. Copy" >&2
-  echo "      \$KIRA_ANIMA_ROOT/terminal/machine.env.example there and edit." >&2
-fi
-
-# Fallbacks so a bare machine still launches (match the studio scripts' defaults).
-export KIRA_ANIMA_ROOT="${KIRA_ANIMA_ROOT:-$HOME/projects/anima}"
-export KIRA_KIRACODE_BIN="${KIRA_KIRACODE_BIN:-$HOME/bin/kiracode}"
-export KIRA_HOST="${KIRA_HOST:-REDACTED-B70}"
-export KIRA_VOICE_SOCKET="${KIRA_VOICE_SOCKET:-/tmp/kira-voice.sock}"
-W="${KIRA_STUDIO_WIDTH:-2560}"
-H="${KIRA_STUDIO_HEIGHT:-1440}"
-
-# 2. Generate the kitty session from the canonical template. kitty cannot expand
-#    env vars inside session command contents, so substitute the paths here; the
-#    host is inherited via $KIRA_HOST (the scripts default --host to it).
-TEMPLATE="$KIRA_ANIMA_ROOT/terminal/kira.session.template"
-if [[ ! -f "$TEMPLATE" ]]; then
-  echo "kira: session template not found at $TEMPLATE (is KIRA_ANIMA_ROOT correct?)" >&2
-  exit 1
-fi
-GEN_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/kira"
-mkdir -p "$GEN_DIR"
-SESSION="$GEN_DIR/kira.session"   # regenerated each launch; not hand-edited
-sed -e "s|@KIRA_ANIMA_ROOT@|$KIRA_ANIMA_ROOT|g" \
-    -e "s|@KIRA_KIRACODE_BIN@|$KIRA_KIRACODE_BIN|g" \
-    "$TEMPLATE" > "$SESSION" || { echo "kira: failed to generate session" >&2; exit 1; }
-
-# 3. Launch. The exported env (KIRA_HOST, KIRA_VOICE_SOCKET, ...) is inherited by
-#    every studio pane and the background mic.
-exec kitty \
-  -o initial_window_width="$W" \
-  -o initial_window_height="$H" \
-  --session "$SESSION" "$@"
+# Open the whole Kira Studio. Thin personal shim: the canonical launcher lives in
+# the kira-studio repo ($KIRA_STUDIO_ROOT/bin/kira) — it owns the session template
+# and pane wiring. This dotfiles entry point just sources machine.env (for
+# KIRA_STUDIO_ROOT) and hands off. (Mirrors bin/kiracode shimming the kiracode repo.)
+[ -f "$HOME/.kira/machine.env" ] && source "$HOME/.kira/machine.env"
+exec "${KIRA_STUDIO_ROOT:-$HOME/projects/kira-studio}/bin/kira" "$@"

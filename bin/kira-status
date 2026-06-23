@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
 # Kira status — gauge strip (submodel health, drift, intensity). Run in any pane.
 [ -f "$HOME/.kira/machine.env" ] && source "$HOME/.kira/machine.env"
-exec "${KIRA_ANIMA_ROOT:-$HOME/projects/anima}/terminal/kira-stats" --mode gauges "$@"
+exec "${KIRA_STUDIO_ROOT:-$HOME/projects/kira-studio}/kira-stats" --mode gauges "$@"
