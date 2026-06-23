@@ -1050,7 +1050,10 @@ install_mise_and_runtimes() {
     export PATH="${MISE_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/mise}/shims:$PATH"
     hash -r 2>/dev/null || true
 
-    if verify_installed node && verify_installed python; then
+    # Verify via mise directly — bulletproof, unlike `command -v` (verify_installed),
+    # which false-fails on a fresh machine when the shim/PATH/hash isn't refreshed in
+    # this non-interactive shell even though the runtime IS installed.
+    if mise exec -- node --version >/dev/null 2>&1 && mise exec -- python --version >/dev/null 2>&1; then
         track_success "Mise & Runtimes"
         success "Mise and runtimes installed."
     else
