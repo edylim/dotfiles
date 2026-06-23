@@ -589,7 +589,16 @@ setup_package_manager() {
                     local brew_installer
                     brew_installer=$(mktemp)
                     if curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh -o "$brew_installer"; then
-                        /bin/bash "$brew_installer"
+                        # In headless mode, run Homebrew's installer non-interactively so
+                        # `--yes` is truly unattended (skips its "Press RETURN to continue"
+                        # prompt). It may still request a sudo password ONCE for the initial
+                        # access check — pre-run `sudo -v`, or use passwordless sudo, for a
+                        # fully hands-off install.
+                        if [[ "$HEADLESS" == true ]]; then
+                            NONINTERACTIVE=1 /bin/bash "$brew_installer"
+                        else
+                            /bin/bash "$brew_installer"
+                        fi
                         rm -f "$brew_installer"
                     else
                         rm -f "$brew_installer"
