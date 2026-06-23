@@ -843,6 +843,7 @@ install_kira_studio() {
 
     if [[ "$DRY_RUN" == true ]]; then
         echo -e "  ${DIM}[dry-run] Would clone edylim/kira-studio to $dir and run its install.sh${NC}"
+        track_success "Kira Studio"
         return 0
     fi
 
@@ -966,6 +967,7 @@ install_mise_and_runtimes() {
 
     if [[ "$DRY_RUN" == true ]]; then
         echo -e "  ${DIM}[dry-run] Would install mise and configure Node.js LTS + Python${NC}"
+        track_success "Mise & Runtimes"
         return 0
     fi
 
@@ -1044,6 +1046,7 @@ install_yarn() {
     info "Installing Yarn..."
     if [[ "$DRY_RUN" == true ]]; then
         echo -e "  ${DIM}[dry-run] Would install yarn${NC}"
+        track_success "Yarn"
         return 0
     fi
 
@@ -1088,6 +1091,7 @@ install_kitty() {
     info "Installing Kitty terminal..."
     if [[ "$DRY_RUN" == true ]]; then
         echo -e "  ${DIM}[dry-run] Would install kitty${NC}"
+        track_success "Kitty"
         return 0
     fi
 
@@ -1214,6 +1218,7 @@ install_jankyborders() {
     info "Installing JankyBorders..."
     if [[ "$DRY_RUN" == true ]]; then
         echo -e "  ${DIM}[dry-run] Would install borders${NC}"
+        track_success "JankyBorders"
         return 0
     fi
 
@@ -1238,6 +1243,7 @@ install_awrit() {
         else
             echo -e "  ${DIM}[dry-run] Would install Awrit to $AW_INSTALL_DIR${NC}"
         fi
+        track_success "Awrit"
         return 0
     fi
 
@@ -1279,6 +1285,7 @@ install_grumpyvim() {
 
     if [[ "$DRY_RUN" == true ]]; then
         echo -e "  ${DIM}[dry-run] Would install GrumpyVim to $NVIM_CONFIG_DIR${NC}"
+        track_success "GrumpyVim"
         return 0
     fi
 
@@ -1343,6 +1350,7 @@ install_zsh_prezto() {
 
     if [[ "$DRY_RUN" == true ]]; then
         echo -e "  ${DIM}[dry-run] Would install Prezto and set Zsh as default shell${NC}"
+        track_success "Zsh & Prezto"
         return 0
     fi
 
