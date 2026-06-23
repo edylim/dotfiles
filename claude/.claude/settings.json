@@ -70,7 +70,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node /Users/ed/.claude/hooks/cite-rule.js"
+            "command": "node $HOME/.claude/hooks/cite-rule.js"
           }
         ]
       },
@@ -78,7 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node /Users/ed/.claude/hooks/sycophancy-guard.js"
+            "command": "node $HOME/.claude/hooks/sycophancy-guard.js"
           }
         ]
       }
@@ -109,7 +109,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node /Users/ed/.claude/hooks/test-edit-guard.js"
+            "command": "node $HOME/.claude/hooks/test-edit-guard.js"
           }
         ]
       },
@@ -118,7 +118,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node /Users/ed/.claude/hooks/scp-guard.js"
+            "command": "node $HOME/.claude/hooks/scp-guard.js"
           }
         ]
       }
@@ -138,7 +138,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node /Users/ed/.claude/hooks/retry-guard.js"
+            "command": "node $HOME/.claude/hooks/retry-guard.js"
           }
         ]
       }
@@ -149,7 +149,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node /Users/ed/.claude/hooks/verify-before-done.js"
+            "command": "node $HOME/.claude/hooks/verify-before-done.js"
           }
         ]
       }
@@ -159,7 +159,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node /Users/ed/.claude/hooks/session-rules.js"
+            "command": "node $HOME/.claude/hooks/session-rules.js"
           }
         ]
       },
