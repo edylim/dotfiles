@@ -55,5 +55,20 @@
   },
   "autoMemoryDirectory": "~/.ai-memory",
   "autoDreamEnabled": true,
-  "skipAutoPermissionPrompt": true
+  "skipAutoPermissionPrompt": true,
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true,
+    "network": {
+      "allowedDomains": [
+        "gitlab.com",
+        "github.com",
+        "secretsmanager.us-west-1.amazonaws.com",
+        "sts.us-west-1.amazonaws.com",
+        "registry.npmjs.org",
+        "pypi.org",
+        "files.pythonhosted.org"
+      ]
+    }
+  }
 }
