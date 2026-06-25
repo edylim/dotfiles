@@ -26,6 +26,10 @@
           {
             "type": "command",
             "command": "bash $HOME/.kira/hooks/discipline.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash $HOME/.kira/hooks/gitlab_mr_hint.sh"
           }
         ]
       }
