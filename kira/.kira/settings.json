@@ -53,6 +53,9 @@
       }
     ]
   },
+  "permissions": {
+    "allow": ["Bash(kira-b70:*)"]
+  },
   "autoMemoryDirectory": "~/.ai-memory",
   "autoDreamEnabled": true,
   "skipAutoPermissionPrompt": true

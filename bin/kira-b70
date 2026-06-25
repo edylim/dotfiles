@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# kira-b70 — the single, pinned gateway for Kira's swarm to run Python inside the
+# anima-server container on the B70 host.
+#
+# WHY THIS EXISTS: raw `ssh ... 'docker exec ...' <<heredoc` can't be allow-listed
+# narrowly — ssh flags come before the host so a host-scoped prefix rule won't
+# match, and `Bash(ssh:*)` is far too broad (allows ssh anywhere). This wrapper
+# collapses the whole thing to one program so the harness can allow-list exactly
+# `Bash(kira-b70:*)` — narrow (B70-only), clean prefix match, heredoc-safe.
+#
+# HOST / CONTAINER / INTERPRETER ARE HARDCODED ON PURPOSE. This is the chokepoint:
+# the wrapper grants "arbitrary Python in the anima container" and nothing wider.
+# That is exactly what the work-data skills already do today, just without the
+# un-answerable permission prompt. If the trust model ever widens (e.g. spawned
+# Claude minions share this harness), the egress firewall — module allow-list,
+# domain filter — goes HERE, in one file, not in any skill.
+#
+# USAGE:
+#   kira-b70 -c 'import sys; print(sys.version)'        # ad-hoc one-liner
+#   kira-b70 -e PROJECT=EXAMPLE -e START=2026-04-01 < fetch.py   # script from a file
+#   echo 'print("hi")' | kira-b70                        # script from a pipe
+#   kira-b70 <<'PY'                                       # heredoc (simple bodies)
+#   from anima.tools import example
+#   PY
+# Leading `-e KEY=VAL` flags are forwarded to `docker exec` for env injection.
+# `-c CODE` runs CODE inline; otherwise the Python script is read from stdin.
+set -euo pipefail
+
+HOST="REDACTED-B70"
+CONTAINER="anima-server"
+
+env_args=()
+while [[ "${1:-}" == "-e" ]]; do
+  if [[ $# -lt 2 ]]; then
+    echo "kira-b70: -e requires a KEY=VAL argument" >&2
+    exit 2
+  fi
+  env_args+=("-e" "$2")
+  shift 2
+done
+
+# Optional inline code: `kira-b70 -c '<python>'` runs the code directly (like
+# `python -c`), so a delegated worker can run an ad-hoc query as ONE simple
+# command — no heredoc (whose complex body fails the permission check) and no
+# temp file (which a background worker can't write outside its cwd). Without -c,
+# the script is read from stdin (`< file` or a pipe).
+inline_code=""
+have_code=0
+if [[ "${1:-}" == "-c" ]]; then
+  if [[ $# -lt 2 ]]; then
+    echo "kira-b70: -c requires a code argument" >&2
+    exit 2
+  fi
+  inline_code="$2"
+  have_code=1
+  shift 2
+fi
+
+# Reject any leftover arg so a typo'd flag (--env, -E, a stray word) fails loudly
+# instead of being silently dropped and the env var never set.
+if [[ $# -gt 0 ]]; then
+  echo "kira-b70: unexpected argument '$1' (only leading '-e KEY=VAL' and an optional '-c CODE' are allowed; otherwise the script is read from stdin)" >&2
+  exit 2
+fi
+
+# Build the remote command as a SINGLE, fully shell-quoted string. ssh flattens
+# its argv into one string that the REMOTE shell re-parses — so if we let ssh do
+# the joining, an -e value (or -c code) with a space breaks docker, and one
+# containing $(...) or ; would EXECUTE ON THE B70 HOST, escaping the container
+# (defeating the whole point). printf %q quotes every dynamic piece so each stays
+# a literal arg. `${env_args[@]+...}` guards the empty-array case under `set -u`.
+remote="docker exec -i"
+for tok in ${env_args[@]+"${env_args[@]}"}; do
+  remote+=" $(printf '%q' "$tok")"
+done
+remote+=" $(printf '%q' "$CONTAINER") python3"
+if [[ $have_code -eq 1 ]]; then
+  remote+=" -c $(printf '%q' "$inline_code")"
+else
+  remote+=" -"
+fi
+
+# System ssh: the kitty `ssh` wrapper rejects non-terminal stdin. BatchMode so it
+# fails fast instead of hanging on a prompt. `python3 -` reads the script from the
+# stdin that ssh forwards; the wrapper's exit code is the remote command's.
+exec /usr/bin/ssh -o ConnectTimeout=30 -o BatchMode=yes "$HOST" "$remote"
