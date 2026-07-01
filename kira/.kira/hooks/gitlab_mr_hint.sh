@@ -14,14 +14,18 @@ m = re.search(r"https?://gitlab\.com/[^\s\"]*?/-/merge_requests/\d+", raw)
 if not m:
     sys.exit(0)
 url = m.group(0)
-cmd = "kira-b70 -e MR_URL=" + repr(url) + " < ~/.kira/skills/gitlab-saas-mr-review/gl.py"
+q = chr(39)  # a literal single quote here would close the bash single-quoted -c block
+cmd = "kira-b70 -e MR_URL=" + repr(url) + " -c " + q + "from anima.tools.gl import fetch_mr; fetch_mr()" + q
 ctx = (
     "GITLAB MR DETECTED (" + url + "). To fetch it, delegate ONE thread to run "
-    "EXACTLY this, passing the URL UNCHANGED — do NOT rewrite it into an api/v4 "
-    "path, do NOT drop any part of the namespace, do NOT use curl/WebFetch/urllib "
-    "and do NOT invent a token:\n    " + cmd + "\n"
-    "For the diff instead of metadata, add: -e MODE=changes . gl.py reads the "
-    "gitlab token from the container and parses the URL itself."
+    "EXACTLY this, VERBATIM, as a shell command — kira-b70 is a local CLI wrapper "
+    "(it already does the SSH + docker-exec), so do NOT prefix it with `ssh`, do "
+    "NOT add `2>&1` or `| head` (the sandbox blocks redirection), do NOT rewrite "
+    "the URL into an api/v4 path, do NOT drop any part of the namespace, and do "
+    "NOT use curl/WebFetch/urllib or invent a token:\n    " + cmd + "\n"
+    "For the diff instead of metadata, add: -e MODE=changes . The gl logic lives "
+    "in the container (anima.tools.gl); it reads the gitlab token there and parses "
+    "the URL itself."
 )
 print(json.dumps({"hookSpecificOutput": {"hookEventName": "UserPromptSubmit", "additionalContext": ctx}}))
 ' "$input"
