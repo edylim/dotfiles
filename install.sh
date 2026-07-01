@@ -92,6 +92,7 @@ declare -a MENU_CONFIG=(
     "ai|AI Tools (claude, gemini-cli)|install_ai_tools||false|core,mise"
     "aws|AWS Tools (awscli, okta-aws-cli, saml2aws, session-manager-plugin)|install_aws_tools||false|core"
     "kira-studio|Kira Studio (in-terminal avatar + voice dev env, macOS)|install_kira_studio|kira|true|core,mise"
+    "kira-skills|Kira/Claude Skills (shared skill pack, nas-synced)|install_kira_skills||false|core"
     "yarn|Yarn|install_yarn|yarn|false|mise"
     "kitty|Kitty Terminal|install_kitty|kitty|false|core"
     "chrome|Google Chrome|install_chrome||false|core"
@@ -884,6 +885,50 @@ install_kira_studio() {
 
     track_success "Kira Studio"
     success "Kira Studio installed."
+}
+
+# Shared skill pack for BOTH Kira (kiracode) and Claude Code. Lives in its own
+# nas-synced repo (the ~/.ai-memory pattern) so Kira has the same skills on every
+# machine — the mac, the B70 box where her brain actually runs, or any thin
+# client. We clone/pull it and run ITS wire.sh (idempotent symlinks into
+# ~/.kira/skills and ~/.claude/skills; code-review is Kira-only). Needs LAN
+# access to the NAS + ssh key; warns and continues when offline.
+install_kira_skills() {
+    info "Installing shared Kira/Claude skills..."
+    local dir="${AI_SKILLS_ROOT:-$HOME/.ai-skills}"
+    local repo="ssh://REDACTED-NAS/kira/skills.git"
+
+    if [[ "$DRY_RUN" == true ]]; then
+        echo -e "  ${DIM}[dry-run] Would clone/pull $repo to $dir and run its wire.sh${NC}"
+        track_success "Kira Skills"
+        return 0
+    fi
+
+    # Fail fast (don't hang on a password prompt) when the NAS/key isn't reachable.
+    export GIT_SSH_COMMAND="ssh -o BatchMode=yes -o ConnectTimeout=15"
+
+    if [[ -d "$dir/.git" ]]; then
+        info "ai-skills already cloned; pulling..."
+        git_pull "$dir" --ff-only || warn "ai-skills pull failed; using existing checkout"
+    elif ! git_clone "$repo" "$dir"; then
+        track_skip "Kira Skills" "NAS unreachable (needs LAN + ssh key)"
+        warn "Could not clone skills repo. On-LAN with NAS ssh access, re-run to wire skills."
+        unset GIT_SSH_COMMAND
+        return 0
+    fi
+    unset GIT_SSH_COMMAND
+
+    # Ensure both harness config homes exist as REAL dirs before stow can fold
+    # them, so wire.sh links skills in (and stow later links its files alongside).
+    mkdir -p "$HOME/.kira" "$HOME/.claude"
+
+    if [[ -f "$dir/wire.sh" ]] && bash "$dir/wire.sh"; then
+        track_success "Kira Skills"
+        success "Kira/Claude skills wired ($dir)."
+    else
+        track_failure "Kira Skills" "wire.sh missing or failed"
+        return 1
+    fi
 }
 
 install_git_tools() {
