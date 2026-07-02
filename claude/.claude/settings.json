@@ -55,6 +55,7 @@
       "Edit(**/.env.*)"
     ]
   },
+  "model": "fable",
   "enableAllProjectMcpServers": false,
   "hooks": {
     "UserPromptSubmit": [
@@ -188,7 +189,8 @@
     "clangd-lsp@claude-plugins-official": true
   },
   "effortLevel": "high",
-  "defaultMode": "acceptEdits",
+  "autoMemoryDirectory": "~/.ai-memory",
   "skipWorkflowUsageWarning": true,
-  "autoMemoryDirectory": "~/.ai-memory"
+  "defaultMode": "acceptEdits",
+  "switchModelsOnFlag": false
 }
