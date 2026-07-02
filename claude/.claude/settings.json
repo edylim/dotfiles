@@ -188,9 +188,10 @@
     "lua-lsp@claude-plugins-official": true,
     "clangd-lsp@claude-plugins-official": true
   },
-  "effortLevel": "high",
+  "effortLevel": "xhigh",
+  "ultracode": true,
   "autoMemoryDirectory": "~/.ai-memory",
   "skipWorkflowUsageWarning": true,
-  "defaultMode": "acceptEdits",
-  "switchModelsOnFlag": false
+  "switchModelsOnFlag": false,
+  "defaultMode": "acceptEdits"
 }
