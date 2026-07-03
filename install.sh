@@ -8,19 +8,27 @@ set -euo pipefail
 # macOS ships with bash 3.2, so we maintain compatibility
 
 # --- Bootstrap: Handle curl pipe installation ---
-# Usage: /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/edylim/dotfiles/master/install.sh)"
+# The repo is PRIVATE — raw.githubusercontent.com serves 404 for it, so the
+# canonical bootstrap is an SSH clone (needs a GitHub-registered key):
+#     git clone git@github.com:edylim/dotfiles.git ~/.dotfiles && ~/.dotfiles/install.sh
+#
+# If the repo is ever made public again, the old one-liner works too — the
+# bootstrap clone below tries SSH first and falls back to HTTPS (which only
+# succeeds for public repos):
+#     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/edylim/dotfiles/master/install.sh)"
 #
 # SECURITY NOTES:
-# - Piping curl to bash is inherently risky. For better security, clone and review first:
-#     git clone https://github.com/edylim/dotfiles.git ~/.dotfiles && ~/.dotfiles/install.sh
+# - Piping curl to bash is inherently risky. For better security, clone and review first.
 # - External installers (mise, zoxide, etc.) are fetched via HTTPS with curl -f (fail on error)
 # - Checksum verification is not implemented because upstream installers are living scripts
 #   without stable checksums. This is a known trade-off for convenience.
-# - All git clones use HTTPS; SSH can be configured via GIT_SSH_COMMAND if needed
+# - The dotfiles clone uses SSH (private repo); override DOTFILES_REPO for HTTPS/forks
 #
 # Configurable GitHub owner (allows forks to work without modification)
 DOTFILES_OWNER="${DOTFILES_OWNER:-edylim}"
-DOTFILES_REPO="https://github.com/${DOTFILES_OWNER}/dotfiles.git"
+DOTFILES_REPO_DEFAULTED=false
+[[ -z "${DOTFILES_REPO:-}" ]] && DOTFILES_REPO_DEFAULTED=true
+DOTFILES_REPO="${DOTFILES_REPO:-git@github.com:${DOTFILES_OWNER}/dotfiles.git}"
 DOTFILES_TARGET="$HOME/.dotfiles"
 
 if [[ -z "${BASH_SOURCE[0]:-}" ]] || [[ "${BASH_SOURCE[0]}" == "bash" ]]; then
@@ -50,7 +58,16 @@ if [[ -z "${BASH_SOURCE[0]:-}" ]] || [[ "${BASH_SOURCE[0]}" == "bash" ]]; then
         fi
     else
         echo "Cloning dotfiles to $DOTFILES_TARGET..."
-        git clone "$DOTFILES_REPO" "$DOTFILES_TARGET"
+        if ! git clone "$DOTFILES_REPO" "$DOTFILES_TARGET"; then
+            # Fall back to anonymous HTTPS (public repos only) — but never when
+            # the user overrode DOTFILES_REPO, or we'd clone the wrong repo.
+            if [[ "$DOTFILES_REPO_DEFAULTED" == true ]]; then
+                echo "SSH clone failed (no GitHub key on this machine?); trying HTTPS..."
+                git clone "https://github.com/${DOTFILES_OWNER}/dotfiles.git" "$DOTFILES_TARGET"
+            else
+                exit 1
+            fi
+        fi
     fi
     exec "$DOTFILES_TARGET/install.sh" "$@"
 fi
@@ -68,6 +85,8 @@ TAPPED_REPOS=()  # Track tapped Homebrew repos to avoid duplicates
 
 # Lock file to prevent concurrent runs
 LOCK_FILE="/tmp/dotfiles-install.lock"
+LOCK_METHOD=""  # set by acquire_lock; release must use the SAME method even if flock appears mid-run
+RWT_CMD_PID=""  # run_with_timeout fallback child; async children ignore tty SIGINT, cleanup() kills it
 
 # Installation state tracking
 STATE_FILE="${DOTFILES_DIR}/.install-state"
@@ -136,6 +155,7 @@ NC='\033[0m' # No Color
 acquire_lock() {
     if command -v flock &> /dev/null; then
         # Linux: use flock
+        LOCK_METHOD="flock"
         exec 200>"$LOCK_FILE"
         if ! flock -n 200; then
             error "Another instance of install.sh is already running (lock: $LOCK_FILE)"
@@ -143,6 +163,7 @@ acquire_lock() {
         echo $$ >&200
     else
         # macOS/BSD: use mkdir (atomic operation) with symlink for atomicity
+        LOCK_METHOD="symlink"
         local lock_dir="${LOCK_FILE}.d"
         local my_lock="/tmp/dotfiles-install-$$.lock"
 
@@ -178,10 +199,12 @@ acquire_lock() {
 }
 
 release_lock() {
-    if command -v flock &> /dev/null; then
+    # Branch on how we ACQUIRED, not on command -v: flock can get installed
+    # mid-run (util-linux/coreutils), which would strand the symlink lock.
+    if [[ "$LOCK_METHOD" == "flock" ]]; then
         flock -u 200 2>/dev/null || true
         rm -f "$LOCK_FILE" 2>/dev/null || true
-    else
+    elif [[ "$LOCK_METHOD" == "symlink" ]]; then
         rm -f "${LOCK_FILE}.d" "/tmp/dotfiles-install-$$.lock" 2>/dev/null || true
     fi
 }
@@ -276,6 +299,11 @@ save_state() {
 cleanup() {
     local exit_code=$?
     tput cnorm 2>/dev/null || true  # Restore cursor
+    # Backgrounded fallback children ignore the terminal's SIGINT; without this
+    # a Ctrl-C'd git clone would keep writing into its target dir.
+    if [[ -n "${RWT_CMD_PID:-}" ]]; then
+        kill "$RWT_CMD_PID" 2>/dev/null || true
+    fi
     release_lock
     save_state
 
@@ -388,8 +416,22 @@ run_with_timeout() {
     elif command -v gtimeout &> /dev/null; then
         gtimeout "$timeout_secs" "$@"
     else
-        warn "No timeout command available - running without timeout protection"
-        "$@"
+        # Stock macOS has neither until coreutils lands mid-run: use a shell
+        # watchdog so first-run clones can't hang forever.
+        # - `<&0` keeps stdin attached (async children otherwise read /dev/null)
+        # - the child pid is global so cleanup() can kill it on Ctrl-C/TERM
+        #   (async children are spawned with SIGINT ignored)
+        # - watchdog stdio -> /dev/null so its orphaned sleep can't hold the
+        #   script's stdout open past exit (stalls pipes/command substitution)
+        "$@" <&0 &
+        RWT_CMD_PID=$!
+        ( sleep "$timeout_secs" && kill "$RWT_CMD_PID" 2>/dev/null ) >/dev/null 2>&1 </dev/null &
+        local watchdog_pid=$!
+        local rc=0
+        wait "$RWT_CMD_PID" || rc=$?
+        RWT_CMD_PID=""
+        kill "$watchdog_pid" 2>/dev/null || true
+        return $rc
     fi
 }
 
@@ -896,7 +938,9 @@ install_kira_studio() {
 install_kira_skills() {
     info "Installing shared Kira/Claude skills..."
     local dir="${AI_SKILLS_ROOT:-$HOME/.ai-skills}"
-    local repo="ssh://REDACTED-NAS/kira/skills.git"
+    # Overridable like AI_SKILLS_ROOT; also keeps the NAS address out of any
+    # future public copy of this file (set AI_SKILLS_REPO in ~/.kira/machine.env).
+    local repo="${AI_SKILLS_REPO:-ssh://REDACTED-NAS/kira/skills.git}"
 
     if [[ "$DRY_RUN" == true ]]; then
         echo -e "  ${DIM}[dry-run] Would clone/pull $repo to $dir and run its wire.sh${NC}"
@@ -1229,7 +1273,9 @@ install_chrome() {
                 return 1
             else
                 local chrome_deb
-                chrome_deb=$(mktemp --suffix=.deb)
+                # mktemp --suffix is GNU-only and BSD templates must END in Xs;
+                # dpkg -i doesn't care about the extension, so skip the suffix.
+                chrome_deb=$(mktemp "${TMPDIR:-/tmp}/chrome-deb-XXXXXX")
                 if wget -q https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -O "$chrome_deb"; then
                     sudo dpkg -i "$chrome_deb" || sudo apt-get install -f -y
                     rm -f "$chrome_deb"
@@ -1542,6 +1588,14 @@ stow_package() {
         fi
     done <<< "$conflicts"
 
+    # Stow's conflict wording varies across versions; if it reported conflicts
+    # in a format none of the parsers above matched, say so instead of failing
+    # mysteriously at the real stow call below.
+    if [[ ${#conflict_files[@]} -eq 0 ]] && grep -qiE 'conflict|existing target|already exists' <<< "$conflicts"; then
+        warn "Stow reported conflicts for '$pkg' in an unrecognized format; the stow call below may fail:"
+        warn "$conflicts"
+    fi
+
     # Back up and remove conflicting files
     if [[ ${#conflict_files[@]} -gt 0 ]]; then
         mkdir -p "$backup_dir"
@@ -1704,7 +1758,8 @@ get_visible_items() {
         fi
         visible+=("$i")
     done
-    echo "${visible[@]}"
+    # ${arr[@]:-} — expanding an empty array trips set -u on bash < 4.4
+    echo "${visible[@]:-}"
 }
 
 run_menu() {
@@ -1715,7 +1770,17 @@ run_menu() {
     read -ra visible_indices <<< "$(get_visible_items)"
     local visible_count=${#visible_indices[@]}
     local visible_cursor=0
+    if [[ $visible_count -eq 0 ]]; then
+        error "No installable items for this platform ($OS)"
+    fi
     MENU_CURSOR=${visible_indices[0]}
+
+    # bash 3.2 (stock macOS) rejects fractional read -t and set -e would kill
+    # the script on the failed read; fall back to a 1s bare-ESC timeout there.
+    local esc_timeout=0.1
+    if [[ ${BASH_VERSINFO[0]} -lt 4 ]]; then
+        esc_timeout=1
+    fi
 
     # Hide cursor
     tput civis
@@ -1737,17 +1802,22 @@ run_menu() {
         case "$key" in
             # Arrow keys (escape sequences)
             $'\x1b')
-                read -rsn2 -t 0.1 key
+                # `|| key=''`: a bare ESC times out with status >128, which set -e
+                # would otherwise treat as fatal.
+                read -rsn2 -t "$esc_timeout" key || key=''
                 case "$key" in
                     '[A') # Up
                         if [[ $visible_cursor -gt 0 ]]; then
-                            ((visible_cursor--))
+                            # `|| true`: (( )) returns 1 when the expression
+                            # evaluates to 0, and set -e kills the script (same
+                            # guard as rotate_log_if_needed).
+                            ((visible_cursor--)) || true
                             MENU_CURSOR=${visible_indices[$visible_cursor]}
                         fi
                         ;;
                     '[B') # Down
                         if [[ $visible_cursor -lt $((visible_count - 1)) ]]; then
-                            ((visible_cursor++))
+                            ((visible_cursor++)) || true
                             MENU_CURSOR=${visible_indices[$visible_cursor]}
                         fi
                         ;;
@@ -1789,13 +1859,13 @@ run_menu() {
             # j/k vim navigation
             'j')
                 if [[ $visible_cursor -lt $((visible_count - 1)) ]]; then
-                    ((visible_cursor++))
+                    ((visible_cursor++)) || true
                     MENU_CURSOR=${visible_indices[$visible_cursor]}
                 fi
                 ;;
             'k')
                 if [[ $visible_cursor -gt 0 ]]; then
-                    ((visible_cursor--))
+                    ((visible_cursor--)) || true
                     MENU_CURSOR=${visible_indices[$visible_cursor]}
                 fi
                 ;;
@@ -1977,7 +2047,7 @@ Examples:
 
 Security Note:
   For better security, clone and review the repo before running:
-    git clone https://github.com/edylim/dotfiles.git ~/.dotfiles
+    git clone git@github.com:edylim/dotfiles.git ~/.dotfiles
     cd ~/.dotfiles
     ./install.sh
 EOF
