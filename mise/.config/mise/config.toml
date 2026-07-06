@@ -1,6 +1,7 @@
 [tools]
-# Use LTS/stable versions for reproducibility
-node = "24.14.0"
+# Track the current LTS/stable lines (matches install.sh's `mise use --global
+# node@lts`); avoids pinning an exact patch that every machine must install.
+node = "lts"
 python = "3"
 
 [settings]
