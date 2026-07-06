@@ -1571,35 +1571,36 @@ stow_package() {
     local conflicts
     conflicts=$(stow -d "$DOTFILES_DIR" -t "$HOME" -n "$pkg" 2>&1) || true
 
-    # Parse conflicts - handle multiple stow output formats for compatibility
+    # Determine conflicts from the PACKAGE CONTENTS, not by parsing stow's
+    # stderr: stow's conflict wording is version-specific (2.3.1 on Ubuntu says
+    # "existing target is neither a link nor a directory: X"; 2.4.x/others differ),
+    # so regex-matching the message silently misses conflicts and stow then aborts.
+    # For every file the package ships, the target is the same relative path under
+    # $HOME; it conflicts if something real (or a foreign symlink) already sits
+    # there and isn't already our link. This is deterministic across stow versions.
     local -a conflict_files=()
+    local src rel target_path tgt_parent src_parent
+    while IFS= read -r -d '' src; do
+        rel="${src#"$DOTFILES_DIR/$pkg/"}"
+        target_path="$HOME/$rel"
+        # Not present (directly or via a folded parent) -> stow will just link it.
+        [[ -e "$target_path" || -L "$target_path" ]] || continue
+        # If the target's parent dir resolves to the SAME physical directory as
+        # the source's parent, this file is our own repo file reached through a
+        # folded-in ancestor symlink (e.g. ~/.claude -> the package); backing it
+        # up would delete the repo copy, so skip it. pwd -P is portable (stock
+        # macOS readlink has no -f). A final-component symlink isn't resolved
+        # here, but the backup loop drops those safely without data loss.
+        tgt_parent=$(cd "$(dirname "$target_path")" 2>/dev/null && pwd -P || echo)
+        src_parent=$(cd "$(dirname "$src")" 2>/dev/null && pwd -P || echo)
+        [[ -n "$src_parent" && "$tgt_parent" == "$src_parent" ]] && continue
+        conflict_files+=("$rel")
+    done < <(find "$DOTFILES_DIR/$pkg" -type f -print0 2>/dev/null)
 
-    # Format 1: "existing target X since..."
-    while IFS= read -r line; do
-        if [[ "$line" =~ existing\ target\ (.+)\ since ]]; then
-            conflict_files+=("${BASH_REMATCH[1]}")
-        fi
-    done <<< "$conflicts"
-
-    # Format 2: "existing target is not owned by stow: X"
-    while IFS= read -r line; do
-        if [[ "$line" =~ not\ owned\ by\ stow:\ (.+)$ ]]; then
-            conflict_files+=("${BASH_REMATCH[1]}")
-        fi
-    done <<< "$conflicts"
-
-    # Format 3: "target X already exists"
-    while IFS= read -r line; do
-        if [[ "$line" =~ target\ (.+)\ already\ exists ]]; then
-            conflict_files+=("${BASH_REMATCH[1]}")
-        fi
-    done <<< "$conflicts"
-
-    # Stow's conflict wording varies across versions; if it reported conflicts
-    # in a format none of the parsers above matched, say so instead of failing
-    # mysteriously at the real stow call below.
+    # Safety net: if stow's own dry-run still flags a conflict we didn't catch
+    # (e.g. a directory-vs-file clash), surface it rather than failing opaquely.
     if [[ ${#conflict_files[@]} -eq 0 ]] && grep -qiE 'conflict|existing target|already exists' <<< "$conflicts"; then
-        warn "Stow reported conflicts for '$pkg' in an unrecognized format; the stow call below may fail:"
+        warn "Stow dry-run reported a conflict for '$pkg' not caught by content scan; stow may fail:"
         warn "$conflicts"
     fi
 
