@@ -938,9 +938,16 @@ install_kira_studio() {
 install_kira_skills() {
     info "Installing shared Kira/Claude skills..."
     local dir="${AI_SKILLS_ROOT:-$HOME/.ai-skills}"
-    # Overridable like AI_SKILLS_ROOT; also keeps the NAS address out of any
-    # future public copy of this file (set AI_SKILLS_REPO in ~/.kira/machine.env).
-    local repo="${AI_SKILLS_REPO:-ssh://REDACTED-NAS/kira/skills.git}"
+    # The remote is machine-local config (like KIRA_STUDIO_ROOT / KIRA_B70_HOST):
+    # set AI_SKILLS_REPO in ~/.kira/machine.env. No baked-in default — this repo
+    # is public, the NAS address is not.
+    [[ -f "$HOME/.kira/machine.env" ]] && source "$HOME/.kira/machine.env"
+    local repo="${AI_SKILLS_REPO:-}"
+    if [[ -z "$repo" ]]; then
+        track_skip "Kira Skills" "AI_SKILLS_REPO not set (see ~/.kira/machine.env)"
+        warn "AI_SKILLS_REPO not set; skipping shared skills. Set it in ~/.kira/machine.env and re-run."
+        return 0
+    fi
 
     if [[ "$DRY_RUN" == true ]]; then
         echo -e "  ${DIM}[dry-run] Would clone/pull $repo to $dir and run its wire.sh${NC}"

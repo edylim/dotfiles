@@ -8,16 +8,19 @@
 # collapses the whole thing to one program so the harness can allow-list exactly
 # `Bash(kira-b70:*)` — narrow (B70-only), clean prefix match, heredoc-safe.
 #
-# HOST / CONTAINER / INTERPRETER ARE HARDCODED ON PURPOSE. This is the chokepoint:
+# HOST / CONTAINER / INTERPRETER ARE PINNED ON PURPOSE. This is the chokepoint:
 # the wrapper grants "arbitrary Python in the anima container" and nothing wider.
 # That is exactly what the work-data skills already do today, just without the
 # un-answerable permission prompt. If the trust model ever widens (e.g. spawned
 # Claude minions share this harness), the egress firewall — module allow-list,
 # domain filter — goes HERE, in one file, not in any skill.
+# The pin lives in ~/.kira/machine.env (KIRA_B70_HOST) rather than this file —
+# the chokepoint property is unchanged (args still can't retarget it), but the
+# address stays machine-local, like KIRA_STUDIO_ROOT does for bin/kira.
 #
 # USAGE:
 #   kira-b70 -c 'import sys; print(sys.version)'        # ad-hoc one-liner
-#   kira-b70 -e PROJECT=EXAMPLE -e START=2026-04-01 < fetch.py   # script from a file
+#   kira-b70 -e PROJECT=EXAMPLE -e START=2026-04-01 < fetch.py  # script from a file
 #   echo 'print("hi")' | kira-b70                        # script from a pipe
 #   kira-b70 <<'PY'                                       # heredoc (simple bodies)
 #   from anima.tools import example
@@ -26,8 +29,9 @@
 # `-c CODE` runs CODE inline; otherwise the Python script is read from stdin.
 set -euo pipefail
 
-HOST="REDACTED-B70"
-CONTAINER="anima-server"
+[ -f "$HOME/.kira/machine.env" ] && source "$HOME/.kira/machine.env"
+HOST="${KIRA_B70_HOST:?kira-b70: set KIRA_B70_HOST (user@host) in ~/.kira/machine.env}"
+CONTAINER="${KIRA_B70_CONTAINER:-anima-server}"
 
 env_args=()
 while [[ "${1:-}" == "-e" ]]; do
