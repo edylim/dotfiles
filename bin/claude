@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# claude — thin-client shim. Claude Code runs on the kira box (the single Claude
+# surface), never locally. Symlinked onto PATH ahead of ~/.local/bin (cutover).
+#
+#   claude                  attach/create a persistent per-project Claude session in a
+#                           tmux window on the box's `-L kira` socket (survives ssh drops;
+#                           Kira's StudioControl can observe it).
+#   claude <args…>          run `claude <args>` on the box in the mapped project dir
+#                           (ephemeral; e.g. --resume, --model). `-p/--print` runs headless.
+#   claude --local <args…>  run the REAL local binary on this Mac (offline / emergency).
+#   KIRA_CLAUDE_HOST=local  force local for the whole shell.
+#   KIRA_CLAUDE_TMUX=0      bare `claude` uses ephemeral `--continue` instead of a tmux window.
+#
+# If the box is unreachable (roaming / off-LAN) it auto-falls back to the local binary.
+#
+# Design notes: every remote call is `bash -lc` (claude isn't on the non-interactive
+# ssh PATH). The remote command is base64-wrapped so args with any quoting survive the
+# ssh → login-shell → bash hop. It only ever creates its OWN `claude-<project>` session;
+# it never touches the studio rooms (kiracode/main/term1/term2).
+set -u
+
+REAL="$HOME/.local/bin/claude"   # real binary; $HOME → /Users/ed (Mac) or /home/ed (box)
+qp() { printf '%q' "$1"; }
+
+# --- local escape hatches -----------------------------------------------------
+[ "${1:-}" = "--local" ] && { shift; exec "$REAL" "$@"; }
+[ "${KIRA_CLAUDE_HOST:-}" = "local" ] && exec "$REAL" "$@"
+
+# --- on the box itself (or any Linux host) Claude already runs natively --------
+# Never ssh-loop into ourselves. Makes the shim safe to ship everywhere via dotfiles.
+[ "$(uname -s)" = "Linux" ] && exec "$REAL" "$@"
+
+# --- resolve the box endpoint (kept OUT of this public repo → machine.env) -----
+[ -f "$HOME/.kira/machine.env" ] && . "$HOME/.kira/machine.env" 2>/dev/null
+host="${KIRA_B70_HOST:-${KIRA_BRAIN_HOST:+${KIRA_BRAIN_USER:-ed}@$KIRA_BRAIN_HOST}}"
+if [ -z "${host:-}" ]; then
+  echo "[claude] no box endpoint — set KIRA_B70_HOST in ~/.kira/machine.env (or use 'claude --local')." >&2
+  exec "$REAL" "$@"
+fi
+
+# --- box unreachable → local fallback -----------------------------------------
+if ! /usr/bin/ssh -o BatchMode=yes -o ConnectTimeout=4 "$host" true 2>/dev/null; then
+  echo "[claude] box ($host) unreachable — using local binary. (\`claude --local\` to force.)" >&2
+  exec "$REAL" "$@"
+fi
+
+sshbase=(-o ConnectTimeout=10 -o ServerAliveInterval=20 -o ServerAliveCountMax=3)
+
+# --- map Mac cwd → box project dir --------------------------------------------
+case "$PWD" in
+  /Users/ed/*) boxdir="/home/ed/${PWD#/Users/ed/}" ;;
+  *)           boxdir="/home/ed/projects" ;;
+esac
+
+# run_remote <tty:yes|no> <remote-script> — base64-wrap so quoting always survives
+run_remote() {
+  local enc; enc=$(printf '%s' "$2" | base64 | tr -d '\n')
+  if [ "$1" = yes ]; then
+    exec /usr/bin/ssh -t "${sshbase[@]}" "$host" "bash -lc \"\$(echo $enc | base64 --decode)\""
+  else
+    exec /usr/bin/ssh "${sshbase[@]}" "$host" "bash -lc \"\$(echo $enc | base64 --decode)\""
+  fi
+}
+
+# --- args present → ephemeral run on the box (headless for -p/--print) ---------
+if [ "$#" -gt 0 ]; then
+  headless=no
+  for a in "$@"; do case "$a" in -p|--print) headless=yes ;; esac; done
+  cmd="cd $(qp "$boxdir") 2>/dev/null || cd ~/projects || cd ~; exec claude"
+  for a in "$@"; do cmd="$cmd $(qp "$a")"; done
+  if [ "$headless" = yes ]; then run_remote no "$cmd"; else run_remote yes "$cmd"; fi
+fi
+
+# --- bare claude, tmux disabled → ephemeral --continue ------------------------
+if [ "${KIRA_CLAUDE_TMUX:-1}" = 0 ]; then
+  run_remote yes "cd $(qp "$boxdir") 2>/dev/null || cd ~/projects || cd ~; exec claude --continue"
+fi
+
+# --- bare claude → persistent per-project session in a -L kira tmux window -----
+base="${boxdir##*/}"; base="${base//[^A-Za-z0-9._-]/-}"; sess="claude-${base:-home}"
+conf="/home/ed/projects/kira-studio/kira.tmux.conf"
+S="cd $(qp "$boxdir") 2>/dev/null || cd ~/projects || cd ~
+if ! tmux -L kira has-session -t $(qp "$sess") 2>/dev/null; then
+  tmux -L kira -f $(qp "$conf") new-session -d -s $(qp "$sess") -c $(qp "$boxdir") claude
+  tmux -L kira set-option -t $(qp "$sess") remain-on-exit off >/dev/null 2>&1 || true
+fi
+exec tmux -L kira attach -t $(qp "$sess")"
+run_remote yes "$S"
