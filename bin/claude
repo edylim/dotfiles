@@ -14,6 +14,9 @@
 #   KIRA_CLAUDE_HOST=local  force local for the whole shell.
 #   KIRA_CLAUDE_TMUX=0      bare `claude` uses ephemeral `--continue` instead of a tmux window.
 #
+# Every launch through this shim runs in AUTO permission mode — unless you name a mode
+# yourself, in which case yours wins (see the auto-mode block below).
+#
 # The box is the ONLY default surface: if it is unreachable, the shim ERRORS and prints
 # the local-binary path — it NEVER silently runs local; you must ask for it via --local.
 #
@@ -26,14 +29,40 @@ set -u
 REAL="$HOME/.local/bin/claude"   # real binary; $HOME → /Users/ed (Mac) or /home/ed (box)
 qp() { printf '%q' "$1"; }
 
+# --- deleted-cwd guard --------------------------------------------------------
+# If the calling shell's directory has been removed, bash prints its own
+#   shell-init: error retrieving current directory: getcwd: cannot access parent directories
+# before this script's first line, and leaves $PWD pointing at the dead path — which then
+# maps to a box project dir the caller never actually asked for. Name that cause instead of
+# leaving a raw bash error to explain itself. Never blocks: the stale $PWD still maps, and
+# the remote side already falls back when the mapped dir is missing.
+if ! pwd -P >/dev/null 2>&1; then
+  echo "[claude] this shell's directory no longer exists — that is the 'shell-init: … getcwd' error above." >&2
+  echo "[claude] \`cd\` somewhere real to clear it; meanwhile the stale \$PWD (${PWD:-?}) picks the box dir." >&2
+fi
+
+# --- auto permission mode -----------------------------------------------------
+# Every launch through the shim starts in auto mode. Suppressed when the caller states a
+# mode themselves, so an explicit --permission-mode / --dangerously-skip-permissions /
+# --safe-mode still wins rather than colliding with ours.
+AUTO=(--permission-mode auto)
+for a in "$@"; do
+  case "$a" in
+    --permission-mode|--permission-mode=*|--safe-mode) AUTO=(); break ;;
+    --dangerously-skip-permissions|--allow-dangerously-skip-permissions) AUTO=(); break ;;
+  esac
+done
+AUTOQ=""   # same flags, shell-quoted, for the remote command strings below
+for a in ${AUTO[@]+"${AUTO[@]}"}; do AUTOQ="$AUTOQ $(qp "$a")"; done
+
 # --- local escape hatches -----------------------------------------------------
-[ "${1:-}" = "--local" ] && { shift; exec "$REAL" "$@"; }
-[ "${KIRA_CLAUDE_HOST:-}" = "local" ] && exec "$REAL" "$@"
+[ "${1:-}" = "--local" ] && { shift; exec "$REAL" ${AUTO[@]+"${AUTO[@]}"} "$@"; }
+[ "${KIRA_CLAUDE_HOST:-}" = "local" ] && exec "$REAL" ${AUTO[@]+"${AUTO[@]}"} "$@"
 
 # --- on the kira-box ITSELF, Claude runs natively (never ssh-loop into ourselves) --
 # Gated on a box-only sentinel file, NOT on uname: every OTHER host — including Linux
 # satellites like ms01 — must route INTO the box, not run its own local claude.
-[ -f "$HOME/.kira/is-box" ] && exec "$REAL" "$@"
+[ -f "$HOME/.kira/is-box" ] && exec "$REAL" ${AUTO[@]+"${AUTO[@]}"} "$@"
 
 # --- resolve the box endpoint (kept OUT of this public repo → machine.env) -----
 [ -f "$HOME/.kira/machine.env" ] && . "$HOME/.kira/machine.env" 2>/dev/null
@@ -114,14 +143,14 @@ esac
 if [ "$#" -gt 0 ]; then
   headless=no
   for a in "$@"; do case "$a" in -p|--print) headless=yes ;; esac; done
-  cmd="cd $(qp "$boxdir") 2>/dev/null || cd ~/projects || cd ~; exec claude"
+  cmd="cd $(qp "$boxdir") 2>/dev/null || cd ~/projects || cd ~; exec claude$AUTOQ"
   for a in "$@"; do cmd="$cmd $(qp "$a")"; done
   if [ "$headless" = yes ]; then run_remote no "$cmd"; else run_remote yes "$cmd"; fi
 fi
 
 # --- bare claude, tmux disabled → ephemeral --continue ------------------------
 if [ "${KIRA_CLAUDE_TMUX:-1}" = 0 ]; then
-  run_remote yes "cd $(qp "$boxdir") 2>/dev/null || cd ~/projects || cd ~; exec claude --continue"
+  run_remote yes "cd $(qp "$boxdir") 2>/dev/null || cd ~/projects || cd ~; exec claude$AUTOQ --continue"
 fi
 
 # --- bare claude → a NEW independent session each launch, in a -L kira tmux window
@@ -137,7 +166,7 @@ base="${boxdir##*/}"; base="${base//[^A-Za-z0-9._-]/-}"; sess="claude-${base:-ho
 conf="/home/ed/projects/kira-studio/kira.tmux.conf"
 S="$REAP
 cd $(qp "$boxdir") 2>/dev/null || cd ~/projects || cd ~
-tmux -L kira -f $(qp "$conf") new-session -d -s $(qp "$sess") -c $(qp "$boxdir") \"zsh -lic 'exec ~/.local/bin/claude'\"
+tmux -L kira -f $(qp "$conf") new-session -d -s $(qp "$sess") -c $(qp "$boxdir") \"zsh -lic 'exec ~/.local/bin/claude$AUTOQ'\"
 tmux -L kira set-option -t $(qp "$sess") remain-on-exit off >/dev/null 2>&1 || true
 exec tmux -L kira attach -t $(qp "$sess")"
 run_remote yes "$S"
