@@ -7,6 +7,9 @@
 # a dirty or diverged clone (reports and skips). Safe to run on any host, any interval.
 set -uo pipefail
 
+# On macOS the interactive `ssh` may be kitty's ssh-kitten (terminal-only); force system ssh for git.
+[ "$(uname -s)" = "Darwin" ] && export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-/usr/bin/ssh}"
+
 conf="${HOME}/.dotfiles/git-hooks/edit-hosts.conf"
 here=$(hostname -s 2>/dev/null || hostname)
 [ -f "$conf" ] || { echo "kira-sync-clones: no $conf"; exit 0; }
