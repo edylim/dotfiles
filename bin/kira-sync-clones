@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# kira-sync-clones — keep read-only clones fresh.
+#
+# For every edit-lock-managed repo (git-hooks/edit-hosts.conf) that is cloned on THIS
+# host but authored on ANOTHER host, fast-forward pull it. The edit-lock stops those
+# clones from DIVERGING; this stops them from going STALE. Only ff-pulls; never touches
+# a dirty or diverged clone (reports and skips). Safe to run on any host, any interval.
+set -uo pipefail
+
+conf="${HOME}/.dotfiles/git-hooks/edit-hosts.conf"
+here=$(hostname -s 2>/dev/null || hostname)
+[ -f "$conf" ] || { echo "kira-sync-clones: no $conf"; exit 0; }
+
+reponame() { local u; u=$(git -C "$1" config --get remote.origin.url 2>/dev/null) || return 1; u=${u##*/}; printf '%s' "${u%.git}"; }
+
+for base in "$HOME/.dotfiles" "$HOME/anima" "$HOME"/projects/*; do
+  [ -d "$base/.git" ] || continue
+  name=$(reponame "$base") || continue
+  allowed=$(awk -v r="$name" '($1==r){print $2; exit}' "$conf")
+  [ -n "$allowed" ] || continue          # not managed -> leave alone
+  [ "$allowed" = "$here" ] && continue    # this host is the editor -> nothing to pull
+
+  if [ -n "$(git -C "$base" status --porcelain 2>/dev/null)" ]; then
+    echo "skip  $name  (dirty — resolve on $allowed)"; continue
+  fi
+  if out=$(git -C "$base" pull --ff-only --quiet 2>&1); then
+    echo "ok    $name  -> $(git -C "$base" rev-parse --short HEAD)"
+  else
+    echo "skip  $name  (${out//$'\n'/ })"
+  fi
+done
