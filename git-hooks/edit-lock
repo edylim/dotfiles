@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# edit-lock — refuse commits/pushes from any host other than a repo's designated
+# authoring machine. Enforces "one editing location per repo" so clones can't
+# diverge (see the ms01 dotfiles incident). Policy: git-hooks/edit-hosts.conf.
+#
+# Installed per-repo via:  git config core.hooksPath ~/.dotfiles/git-hooks
+# Emergency bypass (one commit/push):  git commit --no-verify / git push --no-verify
+set -uo pipefail
+
+conf="${HOME}/.dotfiles/git-hooks/edit-hosts.conf"
+
+# repo name = origin URL basename without .git  (portable: no `basename -s`)
+url=$(git config --get remote.origin.url 2>/dev/null || true)
+repo=${url##*/}; repo=${repo%.git}
+here=$(hostname -s 2>/dev/null || hostname)
+
+if [ -n "${repo:-}" ] && [ -f "$conf" ]; then
+  allowed=$(awk -v r="$repo" '($1==r){print $2; exit}' "$conf")
+  if [ -n "${allowed:-}" ] && [ "$here" != "$allowed" ]; then
+    hook=$(basename "$0")
+    verb=commit; [ "$hook" = "pre-push" ] && verb=push
+    echo "" >&2
+    echo "  ✋ [edit-lock] '$repo' is edit-locked to host '$allowed' — you are on '$here'." >&2
+    echo "     Make the change on '$allowed', then 'git pull' here." >&2
+    echo "     Bypass just this once:  git $verb --no-verify" >&2
+    echo "" >&2
+    exit 1
+  fi
+fi
+
+# core.hooksPath replaces .git/hooks, so chain to the repo's own hook if it had one.
+# ($orig lives in the real .git/hooks dir, never the same file as this shared hook.)
+orig="$(git rev-parse --absolute-git-dir 2>/dev/null)/hooks/$(basename "$0")"
+if [ -x "$orig" ]; then exec "$orig" "$@"; fi
+exit 0
