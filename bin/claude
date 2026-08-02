@@ -86,10 +86,15 @@ fi
 # Unique per launch (…-$$) so multiple `claude` in the SAME dir are INDEPENDENT
 # sessions, not a re-attach to one shared PTY. All live on the -L kira socket so
 # Kira/StudioControl can still observe them; reattach a dropped one via `tmux -L kira ls`.
+# The pane runs claude under a login-INTERACTIVE zsh: an explicit new-session command
+# bypasses default-command ("zsh -li"), and mise (node/python) is activated only in
+# ~/.zshrc — without this the session inherits a stripped PATH with no node/bun and
+# every Claude hook dies with "node: not found". Real binary by path, so a future
+# ~/bin/claude on the box can never re-enter this shim.
 base="${boxdir##*/}"; base="${base//[^A-Za-z0-9._-]/-}"; sess="claude-${base:-home}-$$"
 conf="/home/ed/projects/kira-studio/kira.tmux.conf"
 S="cd $(qp "$boxdir") 2>/dev/null || cd ~/projects || cd ~
-tmux -L kira -f $(qp "$conf") new-session -d -s $(qp "$sess") -c $(qp "$boxdir") claude
+tmux -L kira -f $(qp "$conf") new-session -d -s $(qp "$sess") -c $(qp "$boxdir") \"zsh -lic 'exec ~/.local/bin/claude'\"
 tmux -L kira set-option -t $(qp "$sess") remain-on-exit off >/dev/null 2>&1 || true
 exec tmux -L kira attach -t $(qp "$sess")"
 run_remote yes "$S"
