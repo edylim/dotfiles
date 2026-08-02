@@ -5,6 +5,9 @@
 #   claude                  create a NEW Claude session per launch in a tmux window on
 #                           the box's `-L kira` socket (survives ssh drops; Kira's
 #                           StudioControl can observe it; run it again for another one).
+#   claude --sessions       list the Claude sessions living on the box (state + dir).
+#   claude --attach [name]  attach to one from ANY device; bare if only one exists.
+#   claude --kill <name>    retire a session deliberately (claude-* names only).
 #   claude <args…>          run `claude <args>` on the box in the mapped project dir
 #                           (ephemeral; e.g. --resume, --model). `-p/--print` runs headless.
 #   claude --local <args…>  run the REAL local binary on THIS machine (explicit fallback).
@@ -68,6 +71,45 @@ run_remote() {
   fi
 }
 
+# --- session verbs + corpse reaper --------------------------------------------
+# A session is destroyed ONLY by claude exiting: nothing reaps a live one on a timer,
+# because a session left running on the box is meant to be picked up later, possibly
+# from another device. These verbs are how you find one and get back into it — bare
+# `claude` always mints a NEW session, by design.
+# REAP is the sole exception and only ever kills CORPSES: kira.tmux.conf:56 sets
+# remain-on-exit ON globally for the studio's keep-alive panes, so a claude that dies
+# before the per-session set-option below lands leaves a dead-pane session that
+# nothing would ever clean up. Live sessions and the studio rooms are never touched.
+REAP="tmux -L kira list-panes -a -F '#{session_name} #{pane_dead}' 2>/dev/null |
+awk '\$1 ~ /^claude-/ {n[\$1]++; d[\$1]+=\$2} END {for (s in n) if (d[s]==n[s]) print s}' |
+while read -r s; do tmux -L kira kill-session -t \"\$s\" 2>/dev/null; done"
+
+case "${1:-}" in
+  --sessions)
+    run_remote no "$REAP
+tmux -L kira list-sessions -F '#{session_name}|#{?session_attached,attached,detached}|#{session_path}' 2>/dev/null |
+awk -F'|' '/^claude-/ {printf \"%-30s %-9s %s\\n\", \$1, \$2, \$3; n++} END {if (!n) print \"no claude sessions on the box\"}'"
+    ;;
+  --attach)
+    run_remote yes "$REAP
+all=\$(tmux -L kira list-sessions -F '#{session_name}' 2>/dev/null | grep '^claude-')
+[ -n \"\$all\" ] || { echo 'no claude sessions on the box' >&2; exit 1; }
+s=\$(printf '%s\n' \"\$all\" | grep -x -F -- $(qp "${2:-}"))
+[ -n \"\$s\" ] || s=\$(printf '%s\n' \"\$all\" | grep -F -- $(qp "${2:-}"))
+n=\$(printf '%s' \"\$s\" | grep -c .)
+[ \"\$n\" = 1 ] && exec tmux -L kira attach -t \"\$s\"
+[ \"\$n\" = 0 ] && { echo 'no matching claude session — see: claude --sessions' >&2; exit 1; }
+{ echo 'several sessions match, name one:'; printf '  %s\n' \$s; } >&2; exit 1"
+    ;;
+  --kill)
+    case "${2:-}" in
+      claude-*) ;;
+      *) echo "[claude] --kill takes a claude-* session name (see: claude --sessions)." >&2; exit 1 ;;
+    esac
+    run_remote no "tmux -L kira kill-session -t $(qp "$2") && echo killed $(qp "$2")"
+    ;;
+esac
+
 # --- args present → ephemeral run on the box (headless for -p/--print) ---------
 if [ "$#" -gt 0 ]; then
   headless=no
@@ -93,7 +135,8 @@ fi
 # ~/bin/claude on the box can never re-enter this shim.
 base="${boxdir##*/}"; base="${base//[^A-Za-z0-9._-]/-}"; sess="claude-${base:-home}-$$"
 conf="/home/ed/projects/kira-studio/kira.tmux.conf"
-S="cd $(qp "$boxdir") 2>/dev/null || cd ~/projects || cd ~
+S="$REAP
+cd $(qp "$boxdir") 2>/dev/null || cd ~/projects || cd ~
 tmux -L kira -f $(qp "$conf") new-session -d -s $(qp "$sess") -c $(qp "$boxdir") \"zsh -lic 'exec ~/.local/bin/claude'\"
 tmux -L kira set-option -t $(qp "$sess") remain-on-exit off >/dev/null 2>&1 || true
 exec tmux -L kira attach -t $(qp "$sess")"
