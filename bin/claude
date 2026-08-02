@@ -2,16 +2,17 @@
 # claude — thin-client shim. Claude Code runs on the kira box (the single Claude
 # surface), never locally. Symlinked onto PATH ahead of ~/.local/bin (cutover).
 #
-#   claude                  attach/create a persistent per-project Claude session in a
-#                           tmux window on the box's `-L kira` socket (survives ssh drops;
-#                           Kira's StudioControl can observe it).
+#   claude                  create a NEW Claude session per launch in a tmux window on
+#                           the box's `-L kira` socket (survives ssh drops; Kira's
+#                           StudioControl can observe it; run it again for another one).
 #   claude <args…>          run `claude <args>` on the box in the mapped project dir
 #                           (ephemeral; e.g. --resume, --model). `-p/--print` runs headless.
-#   claude --local <args…>  run the REAL local binary on this Mac (offline / emergency).
+#   claude --local <args…>  run the REAL local binary on THIS machine (explicit fallback).
 #   KIRA_CLAUDE_HOST=local  force local for the whole shell.
 #   KIRA_CLAUDE_TMUX=0      bare `claude` uses ephemeral `--continue` instead of a tmux window.
 #
-# If the box is unreachable (roaming / off-LAN) it auto-falls back to the local binary.
+# The box is the ONLY default surface: if it is unreachable, the shim ERRORS and prints
+# the local-binary path — it NEVER silently runs local; you must ask for it via --local.
 #
 # Design notes: every remote call is `bash -lc` (claude isn't on the non-interactive
 # ssh PATH). The remote command is base64-wrapped so args with any quoting survive the
@@ -26,22 +27,27 @@ qp() { printf '%q' "$1"; }
 [ "${1:-}" = "--local" ] && { shift; exec "$REAL" "$@"; }
 [ "${KIRA_CLAUDE_HOST:-}" = "local" ] && exec "$REAL" "$@"
 
-# --- on the box itself (or any Linux host) Claude already runs natively --------
-# Never ssh-loop into ourselves. Makes the shim safe to ship everywhere via dotfiles.
-[ "$(uname -s)" = "Linux" ] && exec "$REAL" "$@"
+# --- on the kira-box ITSELF, Claude runs natively (never ssh-loop into ourselves) --
+# Gated on a box-only sentinel file, NOT on uname: every OTHER host — including Linux
+# satellites like ms01 — must route INTO the box, not run its own local claude.
+[ -f "$HOME/.kira/is-box" ] && exec "$REAL" "$@"
 
 # --- resolve the box endpoint (kept OUT of this public repo → machine.env) -----
 [ -f "$HOME/.kira/machine.env" ] && . "$HOME/.kira/machine.env" 2>/dev/null
 host="${KIRA_B70_HOST:-${KIRA_BRAIN_HOST:+${KIRA_BRAIN_USER:-ed}@$KIRA_BRAIN_HOST}}"
 if [ -z "${host:-}" ]; then
-  echo "[claude] no box endpoint — set KIRA_B70_HOST in ~/.kira/machine.env (or use 'claude --local')." >&2
-  exec "$REAL" "$@"
+  echo "[claude] no kira-box endpoint configured — set KIRA_B70_HOST in ~/.kira/machine.env." >&2
+  echo "[claude] to run the LOCAL claude on this machine instead: $REAL" >&2
+  echo "[claude]   (or invoke it as: claude --local)" >&2
+  exit 1
 fi
 
-# --- box unreachable → local fallback -----------------------------------------
+# --- box unreachable → ERROR (never silently run local; Ed's rule) -------------
 if ! /usr/bin/ssh -o BatchMode=yes -o ConnectTimeout=4 "$host" true 2>/dev/null; then
-  echo "[claude] box ($host) unreachable — using local binary. (\`claude --local\` to force.)" >&2
-  exec "$REAL" "$@"
+  echo "[claude] cannot reach kira-box ($host)." >&2
+  echo "[claude] to run the LOCAL claude on this machine instead: $REAL" >&2
+  echo "[claude]   (or invoke it as: claude --local)" >&2
+  exit 1
 fi
 
 sshbase=(-o ConnectTimeout=10 -o ServerAliveInterval=20 -o ServerAliveCountMax=3)
@@ -76,13 +82,14 @@ if [ "${KIRA_CLAUDE_TMUX:-1}" = 0 ]; then
   run_remote yes "cd $(qp "$boxdir") 2>/dev/null || cd ~/projects || cd ~; exec claude --continue"
 fi
 
-# --- bare claude → persistent per-project session in a -L kira tmux window -----
-base="${boxdir##*/}"; base="${base//[^A-Za-z0-9._-]/-}"; sess="claude-${base:-home}"
+# --- bare claude → a NEW independent session each launch, in a -L kira tmux window
+# Unique per launch (…-$$) so multiple `claude` in the SAME dir are INDEPENDENT
+# sessions, not a re-attach to one shared PTY. All live on the -L kira socket so
+# Kira/StudioControl can still observe them; reattach a dropped one via `tmux -L kira ls`.
+base="${boxdir##*/}"; base="${base//[^A-Za-z0-9._-]/-}"; sess="claude-${base:-home}-$$"
 conf="/home/ed/projects/kira-studio/kira.tmux.conf"
 S="cd $(qp "$boxdir") 2>/dev/null || cd ~/projects || cd ~
-if ! tmux -L kira has-session -t $(qp "$sess") 2>/dev/null; then
-  tmux -L kira -f $(qp "$conf") new-session -d -s $(qp "$sess") -c $(qp "$boxdir") claude
-  tmux -L kira set-option -t $(qp "$sess") remain-on-exit off >/dev/null 2>&1 || true
-fi
+tmux -L kira -f $(qp "$conf") new-session -d -s $(qp "$sess") -c $(qp "$boxdir") claude
+tmux -L kira set-option -t $(qp "$sess") remain-on-exit off >/dev/null 2>&1 || true
 exec tmux -L kira attach -t $(qp "$sess")"
 run_remote yes "$S"
