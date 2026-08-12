@@ -59,7 +59,7 @@
       "Edit(**/.env.*)"
     ]
   },
-  "model": "opus[1m]",
+  "model": "fable",
   "enableAllProjectMcpServers": false,
   "hooks": {
     "UserPromptSubmit": [
