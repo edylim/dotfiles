@@ -84,6 +84,19 @@ else
   remote+=" -"
 fi
 
+# Box-native short-circuit (2026-08-23): when this machine IS the B70 host,
+# ssh-to-self adds a handshake to every work-data call — Kira literally told
+# Ed "the Jira call runs over ssh to the box" while running ON the box. Same
+# chokepoint (container + interpreter still pinned), no network hop. The IP
+# check is against the pinned HOST, not a hostname guess.
+if ip -4 addr show 2>/dev/null | grep -q "inet ${HOST#*@}/"; then
+  if [[ $have_code -eq 1 ]]; then
+    exec docker exec -i ${env_args[@]+"${env_args[@]}"} "$CONTAINER" python3 -c "$inline_code"
+  else
+    exec docker exec -i ${env_args[@]+"${env_args[@]}"} "$CONTAINER" python3 -
+  fi
+fi
+
 # System ssh: the kitty `ssh` wrapper rejects non-terminal stdin. BatchMode so it
 # fails fast instead of hanging on a prompt. `python3 -` reads the script from the
 # stdin that ssh forwards; the wrapper's exit code is the remote command's.
