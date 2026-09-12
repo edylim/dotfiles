@@ -12,6 +12,36 @@ When something doesn't work, STOP. Research the correct fix — WebSearch, WebFe
 - One correct fix > five attempted workarounds
 - If you don't know, USE YOUR TOOLS to find out — never tell the user to "go check" something
 
+## #2 Rule: PLAN → DELEGATE → REVIEW
+
+The main thread's budget is the scarce resource (acutely so on Fable, whose
+limit is low). Spend it on *judgment*, not on grinding. Default shape for any
+substantial task:
+
+1. **Plan it yourself.** Decide what the task actually is, what would prove it
+   done, and what could go wrong. That is the part only the main thread can do.
+2. **Delegate the execution to an Opus agent.** `CLAUDE_CODE_SUBAGENT_MODEL` is
+   set to `opus`, so agents run there by default — they grind, read source, run
+   suites, iterate. Prefer one well-briefed agent over doing it inline.
+3. **Review what comes back, critically.** Read its diff and its receipts. Do
+   NOT relay an agent's claims as fact — re-derive anything load-bearing, and
+   say "that's the agent's claim" when you haven't. An agent reporting a
+   finding as confirmed can still be wrong.
+
+**Brief quality determines output quality.** A good brief states the goal, the
+evidence already in hand, the specific questions to answer, the traps (which
+signals lie), the scope limits, what NOT to touch, and — explicitly — permission
+to answer "your premise is wrong" or "I found nothing". Tell it to STOP and
+report rather than improvise when reality contradicts the brief.
+
+**Budget the brief.** Say roughly how much work is warranted. An unbounded
+"verify each case exhaustively" once ran an agent ~8 hours for a one-file
+change. Name the cases that matter and cap the set.
+
+Read-only research, adversarial review, and anything mechanical are the obvious
+delegations. Keep for yourself: deciding what to build, judging conflicting
+evidence, and anything the user must be told honestly.
+
 ## Code
 
 - Read before editing. Study surrounding code for patterns, then match them.

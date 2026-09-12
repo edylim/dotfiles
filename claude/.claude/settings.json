@@ -9,7 +9,9 @@
     "DISABLE_BUG_COMMAND": "1",
     "DISABLE_GROWTHBOOK": "1",
     "DISABLE_AUTOUPDATER": "1",
-    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "70"
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "70",
+    "CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL": "1",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "opus"
   },
   "attribution": {
     "commit": "",
@@ -40,7 +42,22 @@
       "Bash(find *)",
       "Bash(mkdir *)",
       "Bash(pwd)",
-      "Bash(jq *)"
+      "Bash(jq *)",
+      "Bash(docker build *)",
+      "Bash(docker ps *)",
+      "Bash(docker logs *)",
+      "Bash(docker inspect *)",
+      "Bash(docker images *)",
+      "Bash(docker compose * up *)",
+      "Bash(cd /home/ed/anima && docker compose * up *)",
+      "Bash(kira-host *)",
+      "Bash(~/projects/kira-studio/kira-brain restart *)",
+      "Bash(/home/ed/projects/kira-studio/kira-brain restart *)",
+      "Bash(~/projects/kira-studio/kira-brain status *)",
+      "Bash(bash /home/ed/anima/docker/voice_health.sh *)",
+      "Bash(./scripts/test.sh *)",
+      "Bash(/home/ed/anima/scripts/test.sh *)",
+      "Bash(/home/ed/anima/.venv-test/bin/python *)"
     ],
     "deny": [
       "Read(~/.ssh/**)",
@@ -59,7 +76,6 @@
       "Edit(**/.env.*)"
     ]
   },
-  "model": "fable",
   "enableAllProjectMcpServers": false,
   "hooks": {
     "UserPromptSubmit": [
@@ -194,8 +210,10 @@
   },
   "effortLevel": "xhigh",
   "ultracode": true,
+  "tui": "default",
   "autoMemoryDirectory": "~/.ai-memory",
   "skipWorkflowUsageWarning": true,
   "switchModelsOnFlag": false,
-  "defaultMode": "acceptEdits"
+  "defaultMode": "acceptEdits",
+  "model": "opus[1m]"
 }
