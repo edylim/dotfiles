@@ -209,7 +209,13 @@
     "clangd-lsp@claude-plugins-official": true
   },
   "effortLevel": "xhigh",
+  "modelSettings": {
+    "claude-fable-5-1": {
+      "effortLevel": "xhigh"
+    }
+  },
   "ultracode": true,
+  "promptSuggestionEnabled": false,
   "tui": "default",
   "autoMemoryDirectory": "~/.ai-memory",
   "skipWorkflowUsageWarning": true,
