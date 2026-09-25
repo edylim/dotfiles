@@ -13,8 +13,10 @@ Data:
              effort, context_window, cost, rate_limits.five_hour/seven_day, ...
   usage API  GET /api/oauth/usage, like kiracode's useUtilization.ts: the Fable weekly
              limit (limits[] kind "weekly_scoped") and spend.used, which stdin lacks.
-  ledger     every transcript under ~/.claude/projects + ~/.kira/projects, priced like
-             kiracode's usageAggregator.ts (Opus and Fable only, UTC month + YTD).
+  ledger     every transcript under ~/.claude/projects + ~/.kira/projects, counted and
+             priced like kiracode's usageAggregator.ts: Opus and Fable only, one turn
+             per API response (a transcript writes a line per content block), each
+             at its own model version's rate, UTC month + YTD.
 
 The two slow sources refresh in a detached background process (usage every 5 min,
 ledger every 30 s, as kiracode polls) into ~/.cache/claude-statusline; rendering only
@@ -41,6 +43,9 @@ LEDGER = os.path.join(CACHE, "ledger.json")
 LEDGER_FILES = os.path.join(CACHE, "ledger-files.json")
 USAGE_TTL = 300  # kiracode polls /api/oauth/usage every 5 min (useUtilization.ts)
 LEDGER_TTL = 30  # kiracode refreshes the ledger every 30 s (StatusFooter.tsx)
+# v2: responses counted once and priced per model version. Bumped so v1 caches,
+# which summed every line of a response, are rebuilt instead of mixed in.
+LEDGER_FORMAT = 2
 
 # ---- kiracode's palette ------------------------------------------------------------
 
@@ -63,10 +68,37 @@ C_DIR = "\033[1m" + rgb("#6aa9ff")
 SEP = DIM + "  │  " + R
 BLANK = "\u2800"  # braille blank: one empty cell that no trim() removes
 
-PRICING = {  # kiracode constants/pricing.ts, USD per 1M tokens
-    "opus": {"input": 5, "output": 25, "cacheRead": 0.5, "cacheWrite": 5},
-    "fable": {"input": 10, "output": 50, "cacheRead": 1.0, "cacheWrite": 10},
+# kiracode constants/pricing.ts: USD per 1M tokens, per model version, from
+# https://platform.claude.com/docs/en/about-claude/pricing (fetched 2026-09-25).
+# (input, output, cache read, 5m cache write, 1h cache write)
+_OPUS_4_5_TO_5 = (5, 25, 0.5, 6.25, 10)
+_OPUS_4_AND_4_1 = (15, 75, 1.5, 18.75, 30)
+PRICING = {
+    "claude-fable-5-1": (10, 50, 0.25, 12.5, 20),
+    "claude-fable-5": (10, 50, 1, 12.5, 20),
+    "claude-opus-5-5": (4, 20, 0.2, 5, 8),
+    "claude-opus-5": _OPUS_4_5_TO_5,
+    "claude-opus-4-8": _OPUS_4_5_TO_5,
+    "claude-opus-4-7": _OPUS_4_5_TO_5,
+    "claude-opus-4-6": _OPUS_4_5_TO_5,
+    "claude-opus-4-5": _OPUS_4_5_TO_5,
+    "claude-opus-4-1": _OPUS_4_AND_4_1,
+    "claude-opus-4": _OPUS_4_AND_4_1,
 }
+# A version the page doesn't list yet is priced at its family's newest documented
+# rate. That is an assumption, not a published price: add the row when it ships.
+FAMILY_FALLBACK = {"opus": "claude-opus-5-5", "fable": "claude-fable-5-1"}
+
+
+def family(model):
+    return "opus" if model.startswith("claude-opus-") else "fable" if model.startswith("claude-fable-") else None
+
+
+def rate_for(model):
+    """The rate for one model version; a dated id (claude-opus-4-1-20250805) matches its base."""
+    if len(model) > 9 and model[-9] == "-" and model[-8:].isdigit():
+        model = model[:-9]
+    return PRICING.get(model) or PRICING[FAMILY_FALLBACK[family(model)]]
 
 
 def jround(x):
@@ -148,17 +180,15 @@ def usage_box(ledger, cols):
     def fill(label, vals):
         return label.ljust(11) + "".join(vals[i].rjust(cw) for i in keep)
 
-    def vals(p):
-        t = [0] * 5
-        cost = {}
+    def vals(p):  # p[family] = [turns, in, out, cache read, cache write, cost]
+        t = [0] * 6
         for m in ("opus", "fable"):
-            x = p.get(m, [0] * 5)
-            for i in range(5):
+            x = p.get(m, [0] * 6)
+            for i in range(6):
                 t[i] += x[i]
-            r = PRICING[m]
-            cost[m] = (x[1] * r["input"] + x[2] * r["output"] + x[3] * r["cacheRead"] + x[4] * r["cacheWrite"]) / 1e6
+        opus, fable = p.get("opus", [0] * 6)[5], p.get("fable", [0] * 6)[5]
         return [str(t[0]), tok(t[1]), tok(t[2]), tok(t[1] + t[2] + t[3] + t[4]),
-                usd(cost["opus"]), usd(cost["fable"]), usd(cost["opus"] + cost["fable"])]
+                usd(opus), usd(fable), usd(opus + fable)]
 
     def row(content, style):
         return KIRA_ICE + "│ " + R + style + content.ljust(W) + R + KIRA_ICE + " │" + R
@@ -290,17 +320,39 @@ def transcripts(root, depth=0, out=None):
     return out
 
 
-def scan(path, start, by_day):
+def merge_row(rows, key, row):
+    """Fold another line of the same response into rows[key]. Every line of a
+    response repeats its input and cache counts; output_tokens is partial on the
+    early lines (8, 8, 1398) and final on the last, so max keeps the final count."""
+    seen = rows.get(key)
+    if seen is None:
+        rows[key] = row
+        return
+    if row[0] < seen[0]:
+        seen[0] = row[0]  # day of the earliest line
+    for i in range(2, 7):
+        if row[i] > seen[i]:
+            seen[i] = row[i]
+
+
+def scan(path, start, rows):
     """scanFile from byte offset `start`; returns the offset after the last full line.
     Transcripts are append-only, so a grown file is read from where the last scan
-    stopped instead of from the top (kiracode re-reads the whole file)."""
+    stopped instead of from the top (kiracode re-reads the whole file).
+
+    rows: response key -> [day, model, in, out, cache read, 5m write, 1h write]. A
+    transcript writes one line per content block of a response, all carrying the
+    response's usage, so lines are merged per (message.id, requestId). The rows are
+    kept per file between scans because a response's lines can straddle two scans."""
     with open(path, "rb") as f:
         f.seek(start)
         data = f.read()
     end = data.rfind(b"\n")
     if end < 0:
         return start
+    pos = start
     for line in data[: end + 1].split(b"\n"):
+        line_at, pos = pos, pos + len(line) + 1
         if b'"output_tokens"' not in line:
             continue
         try:
@@ -313,24 +365,57 @@ def scan(path, start, by_day):
         u, model = msg.get("usage"), msg.get("model")
         if not u or not isinstance(model, str):
             continue
-        b = "opus" if model.startswith("claude-opus-") else "fable" if model.startswith("claude-fable-") else None
         ts = o.get("timestamp")
-        if not b or not isinstance(ts, str) or len(ts) < 10:
+        if not family(model) or not isinstance(ts, str) or len(ts) < 10:
             continue
-        t = by_day.setdefault(ts[:10], {}).setdefault(b, [0] * 5)
-        t[0] += 1
-        t[1] += u.get("input_tokens") or 0
-        t[2] += u.get("output_tokens") or 0
-        t[3] += u.get("cache_read_input_tokens") or 0
-        t[4] += u.get("cache_creation_input_tokens") or 0
+        mid, rid = msg.get("id"), o.get("requestId")
+        mid, rid = (mid if isinstance(mid, str) else ""), (rid if isinstance(rid, str) else "")
+        # either id alone still names one response; with neither, the line stands alone
+        key = mid + "|" + rid if mid or rid else "line:%s:%d" % (path, line_at)
+        # cache writes by TTL (1.25x vs 2x input); without the breakdown, all 5m (the
+        # API default). Capped at the total: forked copies zero the total but not the 1h.
+        w = u.get("cache_creation_input_tokens") or 0
+        w1h = min(((u.get("cache_creation") or {}).get("ephemeral_1h_input_tokens") or 0), w)
+        merge_row(rows, key, [ts[:10], model, u.get("input_tokens") or 0, u.get("output_tokens") or 0,
+                              u.get("cache_read_input_tokens") or 0, w - w1h, w1h])
     return start + end + 1
+
+
+def rollup(files, year, month_key):
+    """Month + YTD per family: [turns, in, out, cache read, cache write, cost]. Each
+    response counts once across ALL files, since a resumed session copies earlier
+    responses into its own transcript; per-file rows are copied, never mutated."""
+    merged = {}
+    for c in files.values():
+        for key, row in c["rows"].items():
+            seen = merged.get(key)
+            if seen is None:
+                merged[key] = row
+            else:
+                merged[key] = list(seen)
+                merge_row(merged, key, row)
+    month = {"opus": [0] * 6, "fable": [0] * 6}
+    ytd = {"opus": [0] * 6, "fable": [0] * 6}
+    rates = {}
+    for day, model, i, o, cr, w5, w1 in merged.values():
+        if not day.startswith(year):
+            continue
+        r = rates.get(model) or rates.setdefault(model, rate_for(model))
+        add = (1, i, o, cr, w5 + w1, (i * r[0] + o * r[1] + cr * r[2] + w5 * r[3] + w1 * r[4]) / 1e6)
+        for dst, ok in ((ytd, True), (month, day.startswith(month_key))):
+            if ok:
+                t = dst[family(model)]
+                for k in range(6):
+                    t[k] += add[k]
+    return month, ytd
 
 
 def refresh_ledger():
     try:
         with open(LEDGER_FILES) as f:
             cache = json.load(f)
-    except (OSError, ValueError):
+        cache = cache["files"] if cache.get("v") == LEDGER_FORMAT else {}
+    except (OSError, ValueError, AttributeError, KeyError):
         cache = {}
     fresh = {}
     for root in projects_roots():
@@ -344,28 +429,22 @@ def refresh_ledger():
                 fresh[p] = c
                 continue
             if c and st.st_size >= c["size"]:
-                by_day, off = c["by_day"], c["offset"]  # appended: read the tail only
+                rows, off = c["rows"], c["offset"]  # appended: read the tail only
             else:
-                by_day, off = {}, 0  # new, or rewritten/shrunk: full scan
+                rows, off = {}, 0  # new, or rewritten/shrunk: full scan
             try:
-                off = scan(p, off, by_day)
+                off = scan(p, off, rows)
             except OSError:
                 continue
-            fresh[p] = {"mtime": st.st_mtime_ns, "size": st.st_size, "offset": off, "by_day": by_day}
+            fresh[p] = {"mtime": st.st_mtime_ns, "size": st.st_size, "offset": off, "rows": rows}
     now = datetime.now(timezone.utc)
     year, month_key = "%04d" % now.year, "%04d-%02d" % (now.year, now.month)
-    month = {"opus": [0] * 5, "fable": [0] * 5}
-    ytd = {"opus": [0] * 5, "fable": [0] * 5}
-    for c in fresh.values():
-        for day, p in c["by_day"].items():
-            for m, t in p.items():
-                for dst, ok in ((ytd, day.startswith(year)), (month, day.startswith(month_key))):
-                    if ok:
-                        dst[m] = [a + b for a, b in zip(dst[m], t)]
-    for path, obj in ((LEDGER_FILES, fresh), (LEDGER, {"month": month, "ytd": ytd, "monthKey": month_key})):
+    month, ytd = rollup(fresh, year, month_key)
+    for path, obj in ((LEDGER_FILES, {"v": LEDGER_FORMAT, "files": fresh}),
+                      (LEDGER, {"v": LEDGER_FORMAT, "month": month, "ytd": ytd, "monthKey": month_key})):
         tmp = path + ".%d.tmp" % os.getpid()
         with open(tmp, "w") as f:
-            json.dump(obj, f)
+            json.dump(obj, f, separators=(",", ":"))
         os.replace(tmp, path)
 
 
@@ -754,7 +833,7 @@ def main():
 
     # blank, then the USAGE ledger
     ledger = load(LEDGER)
-    if ledger:
+    if ledger and ledger.get("v") == LEDGER_FORMAT:  # an older format waits for the next refresh
         if lines[-1] != "":
             lines.append("")
         lines += usage_box(ledger, cols)
