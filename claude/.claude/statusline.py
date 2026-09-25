@@ -522,17 +522,13 @@ def repo_states(cwd):
 
 
 def second_row(j, cwd, cols):
-    """lines +/- · cache  │  every repo's c/p/b state: ● commit / ▲ push / ◆ bake."""
+    """lines +/-  │  every repo's c/p/b state: ● commit / ▲ push / ◆ bake."""
     left_p, left_s = [], []
     added, removed = get(j, "cost", "total_lines_added"), get(j, "cost", "total_lines_removed")
     if added or removed:
         a_, r_ = str(added or 0), str(removed or 0)
         left_p.append("+%s/-%s" % (a_, r_))
         left_s.append(C_ADD + "+" + a_ + R + DIM + "/" + R + C_DEL + "-" + r_ + R)
-    hit = get(j, "prompt_cache", "hit_ratio")
-    if isinstance(hit, (int, float)):
-        left_p.append("cache %d%%" % jround(hit * 100))
-        left_s.append(C_CREDIT + "cache %d%%" % jround(hit * 100) + R)
     plain = " · ".join(left_p)
     styled = (DIM + " · " + R).join(left_s)
     repos = repo_states(cwd)
@@ -618,12 +614,13 @@ def left_segments(j, cwd):
              item(8, get(j, "vim", "mode"), DIM)]
     cost = get(j, "cost", "total_cost_usd")
     dur = get(j, "cost", "total_duration_ms")
-    added, removed = get(j, "cost", "total_lines_added"), get(j, "cost", "total_lines_removed")
     hit = get(j, "prompt_cache", "hit_ratio")
     session = [item(7, get(j, "session_name"), C_CREDIT),
                item(4, "$%.2f" % cost if cost is not None else "", C_CREDIT),
                item(5, ("%dh%dm" % divmod(int(dur) // 60000, 60)) if dur and dur >= 3_600_000 else
                     ("%dm" % (int(dur) // 60000) if dur is not None else ""), C_CREDIT)]
+    if isinstance(hit, (int, float)):
+        session.append(item(6, "cache %d%%" % jround(hit * 100), C_CREDIT))
     return segs, [m for m in model if m], [x for x in session if x]
 
 
