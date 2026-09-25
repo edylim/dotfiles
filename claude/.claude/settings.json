@@ -77,6 +77,11 @@
     ]
   },
   "enableAllProjectMcpServers": false,
+  "statusLine": {
+    "type": "command",
+    "command": "python3 $HOME/.claude/statusline.py",
+    "refreshInterval": 2
+  },
   "hooks": {
     "UserPromptSubmit": [
       {
