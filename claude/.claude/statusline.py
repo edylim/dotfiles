@@ -125,6 +125,67 @@ def gauge_w(label, width, suffix="", label_pad=0):
     return max(len(label) + 2, label_pad) + width + 5 + len(suffix)
 
 
+# ---- where auto-compact fires -----------------------------------------------------------
+# The ctx gauge reads against the auto-compact point, not the whole window (Ed, 09-25): its
+# job is to say when to /compact by hand at a clean boundary, before auto-compact summarises
+# mid-work. Claude Code's formula (vendored harness services/compact/autoCompact.ts:33-90;
+# 2.1.280's minified D8() is the same):
+#   effective = window (capped by CLAUDE_CODE_AUTO_COMPACT_WINDOW) − 20k kept for the summary
+#   threshold = min(effective × CLAUDE_AUTOCOMPACT_PCT_OVERRIDE / 100, effective − 13k)
+# PCT 70 on the 1M window gives 686k: compaction fires when the old gauge read 69%.
+SUMMARY_RESERVE, COMPACT_BUFFER = 20_000, 13_000
+
+
+def claude_env(name):
+    """A var from Claude Code's env: this process's, else the "env" block of the user settings."""
+    if os.environ.get(name):
+        return os.environ[name]
+    home = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+    try:
+        with open(os.path.join(home, "settings.json")) as fh:
+            return str((json.load(fh).get("env") or {}).get(name) or "")
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
+def compact_point(window):
+    """Context tokens at which auto-compact fires; the whole window when it is switched off."""
+    if any(claude_env(v).lower() in ("1", "true", "yes", "on") for v in ("DISABLE_AUTO_COMPACT", "DISABLE_COMPACT")):
+        return window
+    cap = claude_env("CLAUDE_CODE_AUTO_COMPACT_WINDOW")
+    if cap.isdigit() and int(cap) > 0:
+        window = min(window, int(cap))
+    effective = window - SUMMARY_RESERVE
+    point = effective - COMPACT_BUFFER
+    try:
+        pct = float(claude_env("CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"))
+    except ValueError:
+        pct = 0
+    if 0 < pct <= 100:
+        point = min(int(effective * pct / 100), point)
+    return point
+
+
+def ctx_toward_compact(j):
+    """How far the context is toward auto-compact: 1.0 = it fires. The token count is the one
+    Claude Code's used_percentage is built from (input + cache writes + cache reads); after a
+    /compact current_usage is null until the next call, so fall back to used_percentage."""
+    window = get(j, "context_window", "context_window_size") or 0
+    cu = get(j, "context_window", "current_usage")
+    if isinstance(cu, dict):
+        used = sum(cu.get(k) or 0 for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
+    else:
+        used = (get(j, "context_window", "used_percentage") or 0) / 100 * window
+    if not window or not used:
+        return 0.0
+    return min(1.0, used / compact_point(window))
+
+
+def ctx_color(frac):
+    """Blue, then orange with room left to checkpoint and /compact by hand, red when it's close."""
+    return C_DEL if frac >= 0.95 else C_PENDING if frac >= 0.85 else C_CTX
+
+
 DISPLAY_TZ = os.environ.get("KIRA_TZ") or os.environ.get("TZ") or "America/Los_Angeles"
 
 
@@ -885,11 +946,11 @@ def main():
     lines = []
 
     # Row 1: the "? for shortcuts" line — our session data left, ctx gauge right
-    ctx = get(j, "context_window", "used_percentage")
+    ctx = ctx_toward_compact(j)
     ctx_plain_w = gauge_w("ctx used", 12)
     segs, model, session = left_segments(j, cwd)
     plain, styled = build_left(segs, model, session, cols - ctx_plain_w - 1)
-    ctx_gauge = bar_gauge("ctx used", (ctx or 0) / 100, C_CTX)
+    ctx_gauge = bar_gauge("ctx used", ctx, ctx_color(ctx))
     if len(plain) + 1 + ctx_plain_w <= cols:
         lines.append(styled + " " * (cols - len(plain) - ctx_plain_w) + ctx_gauge)
     else:  # very narrow: the gauge gets its own row, still right-aligned
