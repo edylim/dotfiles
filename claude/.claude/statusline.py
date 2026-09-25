@@ -31,6 +31,7 @@ Runs on the box (python 3.14) and the mac (/usr/bin/python3 3.9): stdlib only.
 """
 
 import json
+import re
 import os
 import subprocess
 import sys
@@ -487,15 +488,19 @@ def maybe_spawn_refresh():
 # Ed's "cpb" = commit, push, bake. Every repo shows three slots, ● / ▲ / ◆: green when
 # done, orange + a count when pending (files uncommitted / commits unpushed / commits
 # not yet in the running artifact). Repos with nothing to bake always show a green ◆.
-# "Baked" means the running artifact has caught up with the code:
+# "Baked" means the running artifact has caught up with the code (Ed's cpb, memory feedback-cpb-standing-instruction):
 #   kiracode  harness/dist/cli.js built after the last harness source commit, and the
 #             brain (the process running dist/cli.js) started after that build
 #   anima     anima-server's image pin (docker/compose.box.yaml "head-<sha>") has no
 #             later commits touching what Dockerfile.server COPYs in
+#   studio    no running process uses a kira-studio script that changed after it started
+#             (panes/launchers load their code once; ◆ N = N processes need a relaunch)
+#   kira      every installed copy of an ops script (e.g. ~/.dotfiles/bin/kira-boot-recover,
+#             which systemd runs) matches kira/ops (◆ N = N copies differ)
 # Each git call is 1-4 ms, so this runs inline. Repos that don't exist are skipped.
-REPOS = [("kiracode", "~/projects/kiracode", "kiracode"), ("anima", "~/anima", "anima"),
-         ("kira", "~/projects/kira", None), ("kira-studio", "~/projects/kira-studio", None),
-         ("dotfiles", "~/.dotfiles", None), ("skills", "~/.ai-skills", None)]
+REPOS = [("kiracode", "~/projects/kiracode", "kiracode"), ("anima", "~/anima|~/projects/anima", "anima"),
+         ("kira", "~/projects/kira", "kira-ops"), ("kira-studio", "~/projects/kira-studio", "studio"),
+         ("dotfiles", "~/.dotfiles", None), ("skills", "~/.ai-skills", None)]  # "a|b" = first that exists
 ANIMA_BAKED = ["docker/constraints.txt", "pyproject.toml", "src", "static"]  # Dockerfile.server:44-49
 C_CLEAN, C_PENDING = rgb("#3fb950"), rgb("#f0883e")  # green = done, orange = pending
 
@@ -566,7 +571,120 @@ def unbaked(kind, path):
             return 0
         n = git(path, "rev-list", "--count", "%s..HEAD" % m.group(1), "--", *ANIMA_BAKED) if m else None
         return int(n) if n and n.strip().isdigit() else 0
+    if kind == "studio":  # a ps scan costs ~45 ms, so reuse it for 10 s
+        cached = os.path.join(CACHE, "studio-stale.json")
+        c = load(cached)
+        if c and c.get("repo") == path and age(cached) < 10:
+            return c.get("n", 0)
+        n = len(stale_processes(path))
+        try:
+            os.makedirs(CACHE, exist_ok=True)
+            with open(cached, "w") as f:
+                json.dump({"repo": path, "n": n}, f)
+        except OSError:
+            pass
+        return n
+    if kind == "kira-ops":
+        return len(stale_copies(path))
     return 0
+
+
+def _etime_s(t):
+    """ps etime "[[dd-]hh:]mm:ss" -> seconds (GNU and BSD ps share this format)."""
+    days, _, rest = t.rpartition("-")
+    parts = [int(x) for x in rest.split(":")]
+    while len(parts) < 3:
+        parts.insert(0, 0)
+    return (int(days) if days else 0) * 86400 + parts[0] * 3600 + parts[1] * 60 + parts[2]
+
+
+INTERPRETERS = re.compile(r"^(python[0-9.]*|bash|sh|zsh|dash|node|bun|uv)$")
+
+
+def executed_script(argv):
+    """The script a process is running: argv[0] itself, or the first non-option argument
+    after an interpreter (python3 x.py, bash x.sh, uv run x.py). None when there isn't one."""
+    if not argv:
+        return None
+    if not INTERPRETERS.match(os.path.basename(argv[0])):
+        return argv[0]
+    rest = argv[1:]
+    if os.path.basename(argv[0]) == "uv" and rest[:1] == ["run"]:
+        rest = rest[1:]
+    skip = False
+    for tok in rest:
+        if skip:  # the value of an option like --with / -W
+            skip = False
+            continue
+        if tok in ("-c", "-m", "-e"):
+            return None  # inline code / a module, not a script file
+        if tok in ("--with", "--python", "-p", "--project", "--directory", "-W", "-X"):
+            skip = True
+            continue
+        if not tok.startswith("-"):
+            return tok
+    return None
+
+
+def stale_processes(repo):
+    """Running processes executing a script in `repo` that changed after they started
+    (kira-studio's panes and launchers load their code once): a relaunch is pending.
+    Relative script paths resolve against the process cwd (Linux /proc only)."""
+    try:
+        out = subprocess.run(["ps", "-axo", "pid=,etime=,args="], capture_output=True, text=True,
+                             timeout=2).stdout
+    except Exception:
+        return []
+    now, stale = time.time(), []
+    for line in out.splitlines():
+        try:
+            pid, et, args = line.split(None, 2)
+            started = now - _etime_s(et)
+        except ValueError:
+            continue
+        script = executed_script(args.split())
+        if not script:
+            continue
+        if not script.startswith("/"):
+            try:
+                script = os.path.join(os.readlink("/proc/%s/cwd" % pid), script)
+            except OSError:
+                continue
+        if not script.startswith(repo + "/"):
+            continue
+        try:
+            if os.path.isfile(script) and os.stat(script).st_mtime > started + 1:
+                stale.append((pid, script))
+        except OSError:
+            pass
+    return stale
+
+
+# Installed copies of kira's ops scripts that systemd runs from elsewhere (e.g. the unit's
+# ExecStart is ~/.dotfiles/bin/kira-boot-recover, a git-excluded copy of kira/ops/kira-boot-recover).
+OPS_COPY_DIRS = ["~/.dotfiles/bin", "~/.local/bin"]
+
+
+def stale_copies(repo):
+    """kira/ops scripts whose installed (non-symlink) copy differs from the repo version."""
+    ops, diff = os.path.join(repo, "ops"), []
+    try:
+        names = os.listdir(ops)
+    except OSError:
+        return []
+    for d in OPS_COPY_DIRS:
+        d = os.path.expanduser(d)
+        for n in names:
+            src, dst = os.path.join(ops, n), os.path.join(d, n)
+            if not os.path.isfile(src) or os.path.islink(dst) or not os.path.isfile(dst):
+                continue
+            try:
+                with open(src, "rb") as a, open(dst, "rb") as b:
+                    if a.read() != b.read():
+                        diff.append(dst)
+            except OSError:
+                pass
+    return diff
 
 
 def slot(glyph, n):
@@ -578,9 +696,10 @@ def repo_states(cwd):
     """Every repo as 'name ●/▲/◆' — commit / push / bake (Ed's cpb) — the cwd's repo first.
     Returns [(plain, styled, pending)]."""
     out = []
-    for name, path, kind in REPOS:
-        path = os.path.expanduser(path)
-        if not os.path.isdir(os.path.join(path, ".git")):
+    for name, paths, kind in REPOS:
+        path = next((os.path.expanduser(p) for p in paths.split("|")
+                     if os.path.isdir(os.path.join(os.path.expanduser(p), ".git"))), None)
+        if not path:
             continue
         st = git(path, "status", "--porcelain=v2", "--branch")
         if st is None:
