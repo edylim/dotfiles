@@ -404,8 +404,10 @@ def maybe_spawn_refresh():
         pass
 
 
-# ---- repo state: uncommitted / unpushed / unbaked ------------------------------------
-# Ed's "cpb" = commit, push, bake. One row shows, per repo, what is still pending.
+# ---- repo state: commit / push / bake -------------------------------------------------
+# Ed's "cpb" = commit, push, bake. Every repo shows three slots, ● / ▲ / ◆: green when
+# done, orange + a count when pending (files uncommitted / commits unpushed / commits
+# not yet in the running artifact). Repos with nothing to bake always show a green ◆.
 # "Baked" means the running artifact has caught up with the code:
 #   kiracode  harness/dist/cli.js built after the last harness source commit, and the
 #             brain (the process running dist/cli.js) started after that build
@@ -413,10 +415,10 @@ def maybe_spawn_refresh():
 #             later commits touching what Dockerfile.server COPYs in
 # Each git call is 1-4 ms, so this runs inline. Repos that don't exist are skipped.
 REPOS = [("kiracode", "~/projects/kiracode", "kiracode"), ("anima", "~/anima", "anima"),
-         ("kira", "~/projects/kira", None), ("studio", "~/projects/kira-studio", None),
+         ("kira", "~/projects/kira", None), ("kira-studio", "~/projects/kira-studio", None),
          ("dotfiles", "~/.dotfiles", None), ("skills", "~/.ai-skills", None)]
 ANIMA_BAKED = ["docker/constraints.txt", "pyproject.toml", "src", "static"]  # Dockerfile.server:44-49
-C_DIRTY, C_AHEAD, C_BAKE, C_CLEAN = rgb("#ffb703"), rgb("#6aa9ff"), rgb("#c08cff"), rgb("#3fb950")
+C_CLEAN, C_PENDING = rgb("#3fb950"), rgb("#f0883e")  # green = done, orange = pending
 
 
 def git(path, *args):
@@ -451,17 +453,30 @@ def process_start(needle):
     return best
 
 
-def bake_state(kind, path):
+def unbaked(kind, path):
+    """How many commits the running artifact is behind (0 = baked)."""
     if kind == "kiracode":
-        t = git(path, "log", "-1", "--format=%ct", "--", "harness", ":!harness/dist")
+        dist = os.path.join(path, "harness/dist")
         try:
-            dist = os.stat(os.path.join(path, "harness/dist/cli.js")).st_mtime
+            built = os.stat(os.path.join(dist, "cli.js")).st_mtime
         except OSError:
-            return ""
-        if t and int(t.strip() or 0) > dist:
-            return "unbuilt"
+            return 0
         brain = process_start("harness/dist/cli.js")
-        return "not live" if brain and brain < dist else ""
+        not_live = bool(brain and brain < built)  # rebuilt, but the brain wasn't restarted onto it
+        stamp = load(os.path.join(dist, "build-stamp.json"))
+        if stamp and stamp.get("harness_tree"):
+            # by content (kiracode build.ts stamps the harness/ tree it built): commits
+            # newer than the newest one whose harness/ equals what was built
+            commits = (git(path, "rev-list", "-n", "50", "HEAD", "--", "harness") or "").split()
+            trees = (git(path, "rev-parse", *["%s:harness" % c for c in commits]) or "").split() if commits else []
+            n = next((i for i, t in enumerate(trees) if t == stamp["harness_tree"]), None)
+            if n is None:  # built from edits never committed as-is: count from the build's base
+                n = int((git(path, "rev-list", "--count", "%s..HEAD" % stamp.get("head", "HEAD"), "--", "harness") or "0").strip() or 0)
+            return max(n, 1) if not_live else n
+        # no stamp (a bundle from before build.ts wrote one): fall back to timestamps
+        live = min(built, brain) if brain else built
+        log = git(path, "log", "-n", "500", "--format=%ct", "--", "harness", ":!harness/dist") or ""
+        return sum(1 for t in log.split() if int(t) > live)
     if kind == "anima":
         import re
 
@@ -469,14 +484,20 @@ def bake_state(kind, path):
             with open(os.path.join(path, "docker/compose.box.yaml")) as f:
                 m = re.search(r"image:\s*docker-anima-server:head-([0-9a-f]{7,})", f.read())
         except OSError:
-            return ""
+            return 0
         n = git(path, "rev-list", "--count", "%s..HEAD" % m.group(1), "--", *ANIMA_BAKED) if m else None
-        return ("unbaked %d" % int(n)) if n and int(n) else ""
-    return ""
+        return int(n) if n and n.strip().isdigit() else 0
+    return 0
+
+
+def slot(glyph, n):
+    """One c/p/b slot: green glyph when clean, orange glyph + count when pending."""
+    return (C_CLEAN + glyph + R, glyph) if not n else (C_PENDING + "%s %d" % (glyph, n) + R, "%s %d" % (glyph, n))
 
 
 def repo_states(cwd):
-    """[(plain, styled)] for repos with something pending; the cwd's repo first."""
+    """Every repo as 'name ●/▲/◆' — commit / push / bake (Ed's cpb) — the cwd's repo first.
+    Returns [(plain, styled, pending)]."""
     out = []
     for name, path, kind in REPOS:
         path = os.path.expanduser(path)
@@ -490,26 +511,18 @@ def repo_states(cwd):
         for l in st.splitlines():
             if l.startswith("# branch.ab "):
                 ahead = int(l.split()[2].lstrip("+"))
-        bake = bake_state(kind, path)
-        if not (dirty or ahead or bake):
-            continue
-        plain, styled = name, name
-        if dirty:
-            plain += " ▲ %d" % dirty
-            styled += " " + C_DIRTY + "▲ %d" % dirty + R
-        if ahead:
-            plain += " ↑ %d" % ahead
-            styled += " " + C_AHEAD + "↑ %d" % ahead + R
-        if bake:
-            plain += " " + bake
-            styled += " " + C_BAKE + bake + R
+        bake = unbaked(kind, path)
+        parts = [slot("●", dirty), slot("▲", ahead), slot("◆", bake)]
+        plain = name + " " + "/".join(p for _, p in parts)
+        styled = name + " " + (DIM + "/" + R).join(st_ for st_, _ in parts)
+        entry = (plain, styled, bool(dirty or ahead or bake))
         first = cwd == path or cwd.startswith(path + "/")
-        out.insert(0, (plain, styled)) if first else out.append((plain, styled))
+        out.insert(0, entry) if first else out.append(entry)
     return out
 
 
 def second_row(j, cwd, cols):
-    """lines +/- · cache  │  per-repo pending state (▲ uncommitted, ↑ unpushed, bake)."""
+    """lines +/- · cache  │  every repo's c/p/b state: ● commit / ▲ push / ◆ bake."""
     left_p, left_s = [], []
     added, removed = get(j, "cost", "total_lines_added"), get(j, "cost", "total_lines_removed")
     if added or removed:
@@ -526,23 +539,19 @@ def second_row(j, cwd, cols):
     if plain:
         plain += "  │  "
         styled += SEP
-    if not repos:
-        plain += "✓ committed · pushed · baked"
-        styled += C_CLEAN + "✓" + R + DIM + " committed · pushed · baked" + R
-    else:
-        shown = 0
-        for i, (rp, rs) in enumerate(repos):
-            more = len(repos) - i - 1
-            tail = (" +%d" % more) if more else ""
-            sep_p = "  " if shown else ""
-            if len(plain) + len(sep_p) + len(rp) + len(tail) > cols and shown:
-                plain += " +%d" % (len(repos) - i)
-                styled += DIM + " +%d" % (len(repos) - i) + R
-                break
-            plain += sep_p + rp
-            styled += sep_p + rs
-            shown += 1
-    return styled if plain else ""
+    # repos wrap onto extra rows (aligned under the first repo) rather than being dropped
+    indent = len(plain) if len(plain) < cols // 2 else 0
+    rows_p, rows_s = [plain], [styled]
+    for i, (rp, rs, _) in enumerate(repos):
+        sep = "  " if rows_p[-1].strip() and not rows_p[-1].endswith("│  ") else ""
+        if len(rows_p[-1]) + len(sep) + len(rp) > cols and rows_p[-1].strip():
+            rows_p.append(" " * indent)
+            rows_s.append(" " * indent)
+            sep = ""
+        rows_p[-1] += sep + rp
+        rows_s[-1] += sep + rs
+    return "\n".join(rows_s)
+
 
 
 # ---- render ---------------------------------------------------------------------------
@@ -692,7 +701,7 @@ def main():
         lines += [styled, " " * max(0, cols - ctx_plain_w) + ctx_gauge]
     row2 = second_row(j, cwd, cols)
     if row2:
-        lines.append(row2)
+        lines += row2.split("\n")  # one list entry per row, so padding survives Claude Code's trim
 
     # StatusFooter's limit rows, laid out as two centred columns (Ed, 09-25): the "│"
     # sits at the row's centre on both rows; session over "extra usage spent" on the
