@@ -495,11 +495,11 @@ def repo_states(cwd):
             continue
         plain, styled = name, name
         if dirty:
-            plain += " ●%d" % dirty
-            styled += " " + C_DIRTY + "●%d" % dirty + R
+            plain += " ▲ %d" % dirty
+            styled += " " + C_DIRTY + "▲ %d" % dirty + R
         if ahead:
-            plain += " ↑%d" % ahead
-            styled += " " + C_AHEAD + "↑%d" % ahead + R
+            plain += " ↑ %d" % ahead
+            styled += " " + C_AHEAD + "↑ %d" % ahead + R
         if bake:
             plain += " " + bake
             styled += " " + C_BAKE + bake + R
@@ -509,7 +509,7 @@ def repo_states(cwd):
 
 
 def second_row(j, cwd, cols):
-    """lines +/- · cache  │  per-repo pending state (● uncommitted, ↑ unpushed, bake)."""
+    """lines +/- · cache  │  per-repo pending state (▲ uncommitted, ↑ unpushed, bake)."""
     left_p, left_s = [], []
     added, removed = get(j, "cost", "total_lines_added"), get(j, "cost", "total_lines_removed")
     if added or removed:
