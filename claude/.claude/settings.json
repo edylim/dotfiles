@@ -107,6 +107,14 @@
             "command": "$HOME/.local/share/mise/shims/node $HOME/.claude/hooks/sycophancy-guard.js"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/share/mise/shims/node $HOME/.claude/hooks/compact-nudge.js"
+          }
+        ]
       }
     ],
     "Notification": [
@@ -165,6 +173,15 @@
           {
             "type": "command",
             "command": "$HOME/.local/share/mise/shims/node $HOME/.claude/hooks/retry-guard.js"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/share/mise/shims/node $HOME/.claude/hooks/compact-nudge.js"
           }
         ]
       }

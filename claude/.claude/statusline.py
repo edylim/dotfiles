@@ -167,18 +167,67 @@ def compact_point(window):
 
 
 def ctx_toward_compact(j):
-    """How far the context is toward auto-compact: 1.0 = it fires. The token count is the one
-    Claude Code's used_percentage is built from (input + cache writes + cache reads); after a
-    /compact current_usage is null until the next call, so fall back to used_percentage."""
+    """How far the context is toward auto-compact, as (frac, used, point, window): frac 1.0 = it
+    fires. The token count is the one Claude Code's used_percentage is built from (input + cache
+    writes + cache reads); after a /compact current_usage is null until the next call, so fall
+    back to used_percentage."""
     window = get(j, "context_window", "context_window_size") or 0
     cu = get(j, "context_window", "current_usage")
     if isinstance(cu, dict):
         used = sum(cu.get(k) or 0 for k in ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
     else:
         used = (get(j, "context_window", "used_percentage") or 0) / 100 * window
-    if not window or not used:
-        return 0.0
-    return min(1.0, used / compact_point(window))
+    if not window:
+        return 0.0, 0, 0, 0
+    point = compact_point(window)
+    if not used:
+        return 0.0, 0, point, window
+    return min(1.0, used / point), int(used), point, window
+
+
+# ---- the gauge, left for hooks/compact-nudge.js --------------------------------------------
+# Neither a hook nor the model can run /compact, so the hook tells the main-thread model how
+# close auto-compact is (from 85%) and it checkpoints to memory and asks Ed to /compact. Hooks
+# don't get the context size, so every render leaves it in CTX_DIR/<session_id>.json; its ts
+# says the session is live (the status line redraws every refreshInterval seconds).
+CTX_DIR = os.path.join(CACHE, "ctx")
+CTX_MAX_AGE = 7 * 86400  # a session that hasn't drawn in a week is gone
+CTX_PRUNE_TTL = 86400
+SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")  # a UUID; nothing that walks a path
+
+
+def record_ctx(j, frac, used, point, window):
+    """Write this session's gauge for the hook, atomically. Nothing when the session or the
+    window is unknown: a render with no context_window measured nothing, and must not look
+    like an emptied context (the hook resets its nudges below 50%)."""
+    sid = j.get("session_id")
+    if not isinstance(sid, str) or not SESSION_ID.fullmatch(sid) or not window:
+        return
+    path = os.path.join(CTX_DIR, sid + ".json")
+    tmp = path + ".%d.tmp" % os.getpid()
+    try:
+        os.makedirs(CTX_DIR, exist_ok=True)
+        with open(tmp, "w") as f:
+            json.dump({"session_id": sid, "frac": round(frac, 4), "used": used, "point": point,
+                       "window": window, "ts": round(time.time(), 3)}, f)
+        os.replace(tmp, path)
+    except OSError:
+        pass
+
+
+def prune_ctx():
+    """Drop gauge and nudge-state files no session has touched in CTX_MAX_AGE (background only)."""
+    cutoff = time.time() - CTX_MAX_AGE
+    try:
+        entries = list(os.scandir(CTX_DIR))
+    except OSError:
+        return
+    for e in entries:
+        try:
+            if e.is_file(follow_symlinks=False) and e.stat(follow_symlinks=False).st_mtime < cutoff:
+                os.unlink(e.path)
+        except OSError:
+            pass
 
 
 def ctx_color(frac):
@@ -520,7 +569,8 @@ def background_refresh():
         except OSError:
             return  # another refresher is running
         for marker, ttl, fn in ((USAGE + ".tried", USAGE_TTL, refresh_usage),
-                                (LEDGER + ".tried", LEDGER_TTL, refresh_ledger)):
+                                (LEDGER + ".tried", LEDGER_TTL, refresh_ledger),
+                                (os.path.join(CACHE, "ctx-prune.tried"), CTX_PRUNE_TTL, prune_ctx)):
             if age(marker) >= ttl:
                 touch(marker)  # back off a full TTL even if this attempt fails
                 try:
@@ -946,7 +996,8 @@ def main():
     lines = []
 
     # Row 1: the "? for shortcuts" line — our session data left, ctx gauge right
-    ctx = ctx_toward_compact(j)
+    ctx, ctx_used, ctx_point, ctx_window = ctx_toward_compact(j)
+    record_ctx(j, ctx, ctx_used, ctx_point, ctx_window)
     ctx_plain_w = gauge_w("ctx used", 12)
     segs, model, session = left_segments(j, cwd)
     plain, styled = build_left(segs, model, session, cols - ctx_plain_w - 1)
