@@ -1,14 +1,6 @@
 #!/bin/sh
 # Toggle the Claude Code status line between its first row (default) and the full footer.
 #   sl         toggle
-#   sl --tmux  make a TAP on the status line's ⊞/⊟ toggle it, in the running tmux server
-#              (mouse on + a MouseDown1Pane binding that falls through to tmux's default
-#              `select-pane -t = ; send-keys -M` for every other row). Lost when the
-#              tmux server restarts — re-run it.
-if [ "${1:-}" = "--tmux" ]; then
-  tmux set -g mouse on &&
-  tmux bind -n MouseDown1Pane if -F '#{||:#{m:*⊞*,#{mouse_line}},#{m:*⊟*,#{mouse_line}}}' \
-    "run-shell -b '$HOME/.local/bin/sl >/dev/null'" 'select-pane -t = ; send-keys -M'
-  exit
-fi
+#   sl --tmux  same as claude-tmux-ui: tap-to-toggle + touch scrolling in the running tmux
+[ "${1:-}" = "--tmux" ] && exec "$(dirname "$0")/claude-tmux-ui"  # kept for muscle memory
 exec python3 "$HOME/.claude/statusline.py" --toggle

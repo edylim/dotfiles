@@ -1,0 +1,20 @@
+#!/bin/sh
+# Touch-friendly tmux for Ed's `claude` session (the Kira Studio app's Terminal tab, La
+# Terminal, and kitty on the Mac). Applies to the RUNNING tmux server; everything here is
+# lost when that server restarts, so re-run it then.
+#  - mouse on: taps and wheel events reach tmux.
+#  - a tap on the status line's ⊞/⊟ toggles it (sl); every other tap keeps tmux's default
+#    `select-pane -t = ; send-keys -M`.
+#  - touch clients (TERM xterm-256color) scroll one line per wheel event, so the text
+#    follows the finger (the app sends one event per row of travel); kitty on the Mac
+#    keeps tmux's default of 5 lines per notch.
+set -e
+tmux set -g mouse on
+tmux bind -n MouseDown1Pane if -F '#{||:#{m:*⊞*,#{mouse_line}},#{m:*⊟*,#{mouse_line}}}' \
+  "run-shell -b '$HOME/.local/bin/sl >/dev/null'" 'select-pane -t = ; send-keys -M'
+for table in copy-mode copy-mode-vi; do
+  tmux bind -T "$table" WheelUpPane if -F '#{==:#{client_termname},xterm-kitty}' \
+    'select-pane ; send-keys -X -N 5 scroll-up' 'select-pane ; send-keys -X scroll-up'
+  tmux bind -T "$table" WheelDownPane if -F '#{==:#{client_termname},xterm-kitty}' \
+    'select-pane ; send-keys -X -N 5 scroll-down' 'select-pane ; send-keys -X scroll-down'
+done
