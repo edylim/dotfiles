@@ -1012,13 +1012,19 @@ def main():
     record_ctx(j, ctx, ctx_used, ctx_point, ctx_window)
     ctx_plain_w = gauge_w("ctx used", 12)
     segs, model, session = left_segments(j, cwd)
-    plain, styled = build_left(segs, model, session, cols - ctx_plain_w - 1)
+    # The expand/collapse control leads the row. Tapping a row that shows it runs
+    # `sl` through a tmux mouse binding (see bin/sl), so the glyphs must stay rare
+    # enough never to appear in ordinary output, and single-width (EAW "N").
+    expanded = os.path.exists(EXPANDED)
+    mark = "⊟" if expanded else "⊞"
+    plain, styled = build_left(segs, model, session, cols - ctx_plain_w - 1 - 2)
+    plain, styled = mark + " " + plain, C_CTX + mark + R + " " + styled
     ctx_gauge = bar_gauge("ctx used", ctx, ctx_color(ctx))
     if len(plain) + 1 + ctx_plain_w <= cols:
         lines.append(styled + " " * (cols - len(plain) - ctx_plain_w) + ctx_gauge)
     else:  # very narrow: the gauge gets its own row, still right-aligned
         lines += [styled, " " * max(0, cols - ctx_plain_w) + ctx_gauge]
-    if not os.path.exists(EXPANDED):
+    if not expanded:
         emit(lines)
         return
     row2 = second_row(j, cwd, cols)
