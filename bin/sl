@@ -1,0 +1,3 @@
+#!/bin/sh
+# Toggle the Claude Code status line between its first row (default) and the full footer.
+exec python3 "$HOME/.claude/statusline.py" --toggle

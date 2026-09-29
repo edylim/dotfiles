@@ -42,6 +42,9 @@ CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.
 USAGE = os.path.join(CACHE, "usage.json")
 LEDGER = os.path.join(CACHE, "ledger.json")
 LEDGER_FILES = os.path.join(CACHE, "ledger-files.json")
+# Collapsed by default to the first row (Ed, 09-29: on the iPad the full footer ate
+# a third of the screen). This file's presence expands it; `sl` toggles it.
+EXPANDED = os.path.join(CACHE, "expanded")
 USAGE_TTL = 300  # kiracode polls /api/oauth/usage every 5 min (useUtilization.ts)
 LEDGER_TTL = 30  # kiracode refreshes the ledger every 30 s (StatusFooter.tsx)
 # v2: responses counted once and priced per model version. Bumped so v1 caches,
@@ -964,6 +967,15 @@ def main():
     if len(sys.argv) > 1 and sys.argv[1] == "--refresh":
         background_refresh()
         return
+    if len(sys.argv) > 1 and sys.argv[1] == "--toggle":
+        if os.path.exists(EXPANDED):
+            os.remove(EXPANDED)
+            print("status line: collapsed")
+        else:
+            os.makedirs(CACHE, exist_ok=True)
+            touch(EXPANDED)
+            print("status line: expanded")
+        return
     try:
         j = json.loads(sys.stdin.read() or "{}")
     except ValueError:
@@ -1006,6 +1018,9 @@ def main():
         lines.append(styled + " " * (cols - len(plain) - ctx_plain_w) + ctx_gauge)
     else:  # very narrow: the gauge gets its own row, still right-aligned
         lines += [styled, " " * max(0, cols - ctx_plain_w) + ctx_gauge]
+    if not os.path.exists(EXPANDED):
+        emit(lines)
+        return
     row2 = second_row(j, cwd, cols)
     if row2:
         lines += row2.split("\n")  # one list entry per row, so padding survives Claude Code's trim
@@ -1068,7 +1083,10 @@ def main():
         if lines[-1] != "":
             lines.append("")
         lines += usage_box(ledger, cols)
+    emit(lines)
 
+
+def emit(lines):
     # Claude Code trims every status row and drops empty ones (2.1.280:
     # \`.flatMap((j)=>j.trim()||[])\`), and a leading reset escape doesn't survive its
     # renderer either. U+2800 (braille blank) is not whitespace, draws as one empty
