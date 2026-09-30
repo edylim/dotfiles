@@ -1,0 +1,88 @@
+#!/usr/bin/env python3
+"""Kira says, in her own words, that Claude needs Ed. Called by ed-alert; the app plays the wav.
+
+Her talker composes ONE short line from the reason (never a stock phrase: if composing fails,
+there is no speech and the bell alone stands), the TTS shim voices it, and the result lands at
+~/.cache/kira-alert/latest.wav. The `pending` file tells kira-alert-fetch to wait for it.
+usage: kira-alert-voice <reason>
+"""
+import json
+import os
+import re
+import sys
+import time
+import urllib.request
+
+DIR = os.path.expanduser("~/.cache/kira-alert")
+TALKER = os.environ.get("KIRA_ALERT_TALKER_URL", "http://127.0.0.1:8000").rstrip("/")
+TALKER_MODEL = os.environ.get("KIRA_ALERT_TALKER_MODEL", "kira-main")
+TTS = os.environ.get("KIRA_ALERT_TTS_URL", "http://127.0.0.1:5000").rstrip("/")
+
+
+def log(msg):
+    with open(os.path.join(DIR, "log"), "a") as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}\n")
+
+
+def post(url, body, timeout):
+    req = urllib.request.Request(url, data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read()
+
+
+def compose(reason):
+    """The same shape as anima's _compose_self_state_line: one tiny talker call, her register."""
+    out = json.loads(post(f"{TALKER}/v1/chat/completions", {
+        "model": TALKER_MODEL,
+        "messages": [
+            {"role": "system", "content": "You are Kira, a voice assistant. Casual, deadpan, terse."},
+            {"role": "user", "content":
+                "Claude, the coding assistant working with Ed, is stuck waiting for Ed's answer. "
+                f"What it needs: {reason}. Ed may be away from his screen. Say ONE short spoken "
+                "line (under 15 words) that gets his attention and tells him Claude needs him, and for what. "
+                "Output only the line."},
+        ],
+        "temperature": 0.8, "max_tokens": 40,
+        "chat_template_kwargs": {"enable_thinking": False},
+    }, timeout=4))
+    text = out["choices"][0]["message"]["content"] or ""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
+    text = re.sub(r"^\[[a-z\-]+\]\s*", "", text.strip().strip('"'))
+    return text if 0 < len(text) <= 120 else None  # too long or empty is a misfire, not a voice
+
+
+def main():
+    reason = " ".join(sys.argv[1:]).strip()
+    if not reason:
+        return
+    os.makedirs(DIR, exist_ok=True)
+    pending = os.path.join(DIR, "pending")
+    open(pending, "w").close()  # ed-alert made it already; this covers a standalone run
+    try:  # an older line must never play for this alert
+        os.remove(os.path.join(DIR, "latest.wav"))
+    except FileNotFoundError:
+        pass
+    t0 = time.monotonic()
+    try:
+        line = compose(reason)
+        if not line:
+            log(f"no line composed for {reason!r}; bell only")
+            return
+        wav = post(f"{TTS}/synthesize", {"text": line}, timeout=15)
+        tmp = os.path.join(DIR, "latest.wav.tmp")
+        with open(tmp, "wb") as f:
+            f.write(wav)
+        os.replace(tmp, os.path.join(DIR, "latest.wav"))
+        log(f"{(time.monotonic() - t0) * 1000:.0f} ms {line!r} ({len(wav)} bytes) for {reason!r}")
+    except Exception as e:  # the bell already rang; a voice failure must stay silent
+        log(f"failed for {reason!r}: {e!r}")
+    finally:
+        try:
+            os.remove(pending)
+        except FileNotFoundError:
+            pass
+
+
+if __name__ == "__main__":
+    main()

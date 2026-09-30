@@ -1,0 +1,14 @@
+#!/bin/sh
+# Print Kira's spoken alert (a wav) on stdout, for the Kira Studio app to play when the terminal
+# bell rings. Waits up to 15 s while kira-alert-voice is still composing; prints nothing if there
+# is no fresh line (the bell alone stands). A `pending` older than 30 s is a crashed job: ignored.
+d="$HOME/.cache/kira-alert"
+now() { date +%s; }
+age() { echo $(( $(now) - $(stat -c %Y "$1") )); }
+end=$(( $(now) + 15 ))
+while [ -e "$d/pending" ] && [ "$(age "$d/pending")" -le 30 ] && [ "$(now)" -lt "$end" ]; do
+  sleep 0.2
+done
+f="$d/latest.wav"
+[ -f "$f" ] && [ "$(age "$f")" -le 30 ] && cat "$f"
+exit 0
