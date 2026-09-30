@@ -120,7 +120,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.local/bin/kira-need hook UserPromptSubmit"
+            "command": "test -x $HOME/.local/bin/kira-need && exec $HOME/.local/bin/kira-need hook UserPromptSubmit; cat >/dev/null"
           }
         ]
       }
@@ -140,7 +140,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.local/bin/kira-need hook Notification"
+            "command": "test -x $HOME/.local/bin/kira-need && exec $HOME/.local/bin/kira-need hook Notification; cat >/dev/null"
           }
         ]
       }
@@ -178,7 +178,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.local/bin/kira-need hook PreToolUse"
+            "command": "test -x $HOME/.local/bin/kira-need && exec $HOME/.local/bin/kira-need hook PreToolUse; cat >/dev/null"
           }
         ]
       }
@@ -216,7 +216,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.local/bin/kira-need hook PostToolUse"
+            "command": "test -x $HOME/.local/bin/kira-need && exec $HOME/.local/bin/kira-need hook PostToolUse; cat >/dev/null"
           }
         ]
       }
@@ -227,7 +227,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.local/bin/kira-need hook PostToolUseFailure"
+            "command": "test -x $HOME/.local/bin/kira-need && exec $HOME/.local/bin/kira-need hook PostToolUseFailure; cat >/dev/null"
           }
         ]
       }
@@ -238,7 +238,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.local/bin/kira-need hook PermissionDenied"
+            "command": "test -x $HOME/.local/bin/kira-need && exec $HOME/.local/bin/kira-need hook PermissionDenied; cat >/dev/null"
           }
         ]
       }
@@ -248,7 +248,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.local/bin/kira-need hook ElicitationResult"
+            "command": "test -x $HOME/.local/bin/kira-need && exec $HOME/.local/bin/kira-need hook ElicitationResult; cat >/dev/null"
           }
         ]
       }
@@ -295,7 +295,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "$HOME/.local/bin/kira-need hook SessionEnd"
+            "command": "test -x $HOME/.local/bin/kira-need && exec $HOME/.local/bin/kira-need hook SessionEnd; cat >/dev/null"
           }
         ]
       }
