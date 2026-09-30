@@ -1,0 +1,10 @@
+#!/bin/sh
+# Ring every device attached to Ed's `claude` tmux session, for when Claude needs his input.
+# tmux (bell-action any) passes the bell to each client: the Kira Studio app turns it into a
+# sound + haptic, or a notification when the phone is locked; kitty and La Terminal ring.
+# Claude Code's Notification hook already rings on permission prompts and idle waits; this is
+# for when Claude asks Ed something in a reply.   usage: ed-alert [short reason]
+tty=$(tmux display -p -t '=claude:' '#{pane_tty}' 2>/dev/null) || exit 0
+[ -w "$tty" ] && printf '\a' > "$tty"
+[ -n "${1:-}" ] && tmux display-message -t '=claude:' -d 10000 "Claude: $*" 2>/dev/null
+exit 0
