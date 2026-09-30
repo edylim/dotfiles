@@ -1,0 +1,119 @@
+#!/usr/bin/env python3
+"""Kira gets Ed's attention: she says, in her own words, what she needs (or passes on what
+someone else needs, with --for). Her channel, not Claude's: Claude is one client (ed-alert).
+
+Her talker composes ONE short line (never a stock phrase: if composing fails, the event carries
+no line and the app falls back to a notification with the reason), the TTS shim voices it, and
+the event lands in ~/.cache/kira-alert/queue/ as <id>.wav + <id>.json (the json is written last,
+so its presence means the event is complete). kira-alert-listen streams events to the app.
+usage: kira-alert [--for WHO] <reason>
+"""
+import argparse
+import fcntl
+import glob
+import json
+import os
+import re
+import time
+import urllib.request
+
+DIR = os.path.expanduser("~/.cache/kira-alert")
+QUEUE = os.path.join(DIR, "queue")
+TALKER = os.environ.get("KIRA_ALERT_TALKER_URL", "http://127.0.0.1:8000").rstrip("/")
+TALKER_MODEL = os.environ.get("KIRA_ALERT_TALKER_MODEL", "kira-main")
+TTS = os.environ.get("KIRA_ALERT_TTS_URL", "http://127.0.0.1:5000").rstrip("/")
+KEEP_S = 3600  # events older than this are pruned
+
+
+def log(msg):
+    with open(os.path.join(DIR, "log"), "a") as f:
+        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}\n")
+
+
+def post(url, body, timeout):
+    req = urllib.request.Request(url, data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return r.read()
+
+
+def situation(reason, who):
+    if who:
+        return (f"{who} needs Ed and asked you to pass it on. What {who} needs: {reason}. "
+                "Ed may be away from his screen. Say ONE short spoken line (under 15 words) that "
+                f"gets his attention and tells him {who} needs him, and for what. Output only the line.")
+    return (f"You need Ed's attention: {reason}. Ed may be away from his screen. Say ONE short "
+            "spoken line (under 15 words) that gets his attention and tells him what you need. "
+            "Output only the line.")
+
+
+def compose(reason, who):
+    """The same shape as anima's _compose_self_state_line: one tiny talker call, her register."""
+    out = json.loads(post(f"{TALKER}/v1/chat/completions", {
+        "model": TALKER_MODEL,
+        "messages": [
+            {"role": "system", "content": "You are Kira, a voice assistant. Casual, deadpan, terse."},
+            {"role": "user", "content": situation(reason, who)},
+        ],
+        "temperature": 0.8, "max_tokens": 40,
+        "chat_template_kwargs": {"enable_thinking": False},
+    }, timeout=4))
+    text = out["choices"][0]["message"]["content"] or ""
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
+    text = re.sub(r"^\[[a-z\-]+\]\s*", "", text.strip().strip('"'))
+    return text if 0 < len(text) <= 120 else None  # too long or empty is a misfire, not a voice
+
+
+def prune(now):
+    for p in glob.glob(os.path.join(QUEUE, "*")):
+        try:
+            if now - os.path.getmtime(p) > KEEP_S:
+                os.remove(p)
+        except FileNotFoundError:
+            pass
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--for", dest="who", default=None, help="whose message she is passing on")
+    ap.add_argument("reason", nargs="+")
+    a = ap.parse_args()
+    reason = " ".join(a.reason).strip()
+    os.makedirs(QUEUE, exist_ok=True)
+    # One line at a time: an alert that arrives while one is being composed is logged and dropped
+    # (the caller's own bell or notification still stands), so alerts never pile up into a speech.
+    lock = open(os.path.join(DIR, "compose.lock"), "w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        log(f"busy; dropped {reason!r}")
+        return
+    now = time.time()
+    prune(now)
+    eid = str(int(now * 1000))
+    # title/body are decided HERE, not in the app: the app is a wrapper that shows and plays what
+    # the box sends (Ed 09-29), so wording and sources can change without an app update.
+    event = {"id": eid, "title": f"Kira · {a.who}" if a.who else "Kira", "body": reason,
+             "for": a.who, "reason": reason, "line": None,
+             "created": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+    t0 = time.monotonic()
+    try:
+        event["line"] = compose(reason, a.who)
+        if event["line"]:
+            event["body"] = event["line"]  # her words when she has them; the reason otherwise
+            wav = post(f"{TTS}/synthesize", {"text": event["line"]}, timeout=15)
+            with open(os.path.join(QUEUE, eid + ".wav.tmp"), "wb") as f:
+                f.write(wav)
+            os.replace(os.path.join(QUEUE, eid + ".wav.tmp"), os.path.join(QUEUE, eid + ".wav"))
+    except Exception as e:  # a voice failure leaves a line-less event: the app notifies with the reason
+        log(f"voice failed for {reason!r}: {e!r}")
+    finally:
+        with open(os.path.join(QUEUE, eid + ".json.tmp"), "w") as f:
+            json.dump(event, f)
+        os.replace(os.path.join(QUEUE, eid + ".json.tmp"), os.path.join(QUEUE, eid + ".json"))
+        log(f"{(time.monotonic() - t0) * 1000:.0f} ms id {eid} for={a.who} line={event['line']!r} "
+            f"reason={reason!r}")
+
+
+if __name__ == "__main__":
+    main()

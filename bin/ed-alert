@@ -2,21 +2,12 @@
 # Ring every device attached to Ed's `claude` tmux session, for when Claude needs his input.
 # tmux (bell-action any) passes the bell to each client: the Kira Studio app turns it into a
 # sound + haptic, or a notification when the phone is locked; kitty and La Terminal ring.
-# With a reason, Kira also says it in her own words: kira-alert-voice composes and voices a
-# line in the background, and the app fetches it (kira-alert-fetch) when the bell arrives.
+# With a reason, Kira also passes it on in her own words (kira-alert --for Claude; her alert
+# channel, which the app streams with kira-alert-listen).
 # Claude Code's Notification hook already rings on permission prompts and idle waits; this is
 # for when Claude asks Ed something in a reply.   usage: ed-alert [short reason]
 tty=$(tmux display -p -t '=claude:' '#{pane_tty}' 2>/dev/null) || exit 0
-if [ -n "${1:-}" ]; then
-  d="$HOME/.cache/kira-alert"
-  mkdir -p "$d"
-  # One line at a time: while a line is still being composed, this alert is bell-only.
-  if [ -z "$(find "$d/pending" -newermt '-30 seconds' 2>/dev/null)" ]; then
-    rm -f "$d/latest.wav"
-    : > "$d/pending"  # before the bell, so the app's fetch always waits for this line
-    setsid kira-alert-voice "$*" < /dev/null > /dev/null 2>&1 &
-  fi
-fi
+[ -n "${1:-}" ] && setsid kira-alert --for Claude "$*" < /dev/null > /dev/null 2>&1 &
 [ -w "$tty" ] && printf '\a' > "$tty"
 [ -n "${1:-}" ] && tmux display-message -t '=claude:' -d 10000 "Claude: $*" 2>/dev/null
 exit 0
