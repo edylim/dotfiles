@@ -115,6 +115,14 @@
             "command": "$HOME/.local/share/mise/shims/node $HOME/.claude/hooks/compact-nudge.js"
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/kira-need hook UserPromptSubmit"
+          }
+        ]
       }
     ],
     "Notification": [
@@ -124,6 +132,15 @@
           {
             "type": "command",
             "command": "printf '%s' '{\"terminalSequence\":\"\\u0007\"}'"
+          }
+        ]
+      },
+      {
+        "matcher": "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/kira-need hook Notification"
           }
         ]
       }
@@ -155,6 +172,15 @@
             "command": "$HOME/.local/share/mise/shims/node $HOME/.claude/hooks/scp-guard.js"
           }
         ]
+      },
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/kira-need hook PreToolUse"
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -182,6 +208,47 @@
           {
             "type": "command",
             "command": "$HOME/.local/share/mise/shims/node $HOME/.claude/hooks/compact-nudge.js"
+          }
+        ]
+      },
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/kira-need hook PostToolUse"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/kira-need hook PostToolUseFailure"
+          }
+        ]
+      }
+    ],
+    "PermissionDenied": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/kira-need hook PermissionDenied"
+          }
+        ]
+      }
+    ],
+    "ElicitationResult": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/kira-need hook ElicitationResult"
           }
         ]
       }
@@ -221,6 +288,14 @@
           {
             "type": "command",
             "command": "bash $HOME/.ai-memory/sync.sh"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "$HOME/.local/bin/kira-need hook SessionEnd"
           }
         ]
       }

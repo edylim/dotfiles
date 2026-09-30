@@ -1,13 +1,19 @@
 #!/bin/sh
-# Ring every device attached to Ed's `claude` tmux session, for when Claude needs his input.
-# tmux (bell-action any) passes the bell to each client: the Kira Studio app turns it into a
-# sound + haptic, or a notification when the phone is locked; kitty and La Terminal ring.
-# With a reason, Kira also passes it on in her own words (kira-alert --for Claude; her alert
-# channel, which the app streams with kira-alert-listen).
-# Claude Code's Notification hook already rings on permission prompts and idle waits; this is
-# for when Claude asks Ed something in a reply.   usage: ed-alert [short reason]
+# Claude needs Ed's input: ring the terminal, and keep Kira calling him until he answers.
+# - kira-need opens a need for THIS Claude session (CLAUDE_CODE_SESSION_ID): Kira calls out to
+#   him in her own words, nothing about what it is, on a backoff until he sends the session a
+#   prompt (Ed 09-30: "it just needs to get my attention … it should persist until i address the
+#   issue"). Outside a Claude session there is nothing to close it, so she calls once.
+# - tmux (bell-action any) passes the bell to each client of Ed's `claude` session: kitty and
+#   La Terminal ring. The reason shows on that session's status line only.
+# Claude Code's hooks open needs for permission prompts and dialogs on their own (kira-need);
+# this is for when Claude asks Ed something in a reply.   usage: ed-alert [short reason]
+if [ -n "${CLAUDE_CODE_SESSION_ID:-}" ]; then
+  kira-need open --session "$CLAUDE_CODE_SESSION_ID" < /dev/null > /dev/null 2>&1
+else
+  setsid kira-alert --attention < /dev/null > /dev/null 2>&1 &
+fi
 tty=$(tmux display -p -t '=claude:' '#{pane_tty}' 2>/dev/null) || exit 0
-[ -n "${1:-}" ] && setsid kira-alert --for Claude "$*" < /dev/null > /dev/null 2>&1 &
 [ -w "$tty" ] && printf '\a' > "$tty"
 [ -n "${1:-}" ] && tmux display-message -t '=claude:' -d 10000 "Claude: $*" 2>/dev/null
 exit 0
