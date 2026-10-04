@@ -13,3 +13,6 @@ install.log.old
 .install-state
 
 # Local AI assistant config (CLAUDE.md now tracked in dotfiles)
+
+# Python bytecode caches (bin/kira-alert-voice runs on the box and leaves one)
+__pycache__/
