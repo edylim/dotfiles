@@ -77,11 +77,6 @@
     ]
   },
   "enableAllProjectMcpServers": false,
-  "statusLine": {
-    "type": "command",
-    "command": "python3 $HOME/.claude/statusline.py",
-    "refreshInterval": 1
-  },
   "hooks": {
     "UserPromptSubmit": [
       {
@@ -301,6 +296,11 @@
       }
     ]
   },
+  "statusLine": {
+    "type": "command",
+    "command": "python3 $HOME/.claude/statusline.py",
+    "refreshInterval": 1
+  },
   "enabledPlugins": {
     "lua-lsp@claude-plugins-official": true,
     "clangd-lsp@claude-plugins-official": true
@@ -308,6 +308,9 @@
   "effortLevel": "xhigh",
   "modelSettings": {
     "claude-fable-5-1": {
+      "effortLevel": "xhigh"
+    },
+    "claude-opus-5-5": {
       "effortLevel": "xhigh"
     }
   },
@@ -317,6 +320,5 @@
   "autoMemoryDirectory": "~/.ai-memory",
   "skipWorkflowUsageWarning": true,
   "switchModelsOnFlag": false,
-  "defaultMode": "acceptEdits",
-  "model": "opus[1m]"
+  "defaultMode": "acceptEdits"
 }
