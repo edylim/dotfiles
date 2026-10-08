@@ -20,6 +20,13 @@
   "permissions": {
     "allow": [
       "WebSearch",
+      "Workflow",
+      "CronCreate",
+      "CronDelete",
+      "CronList",
+      "WebFetch",
+      "SendMessage",
+      "TaskStop",
       "Bash(git *)",
       "Bash(yarn *)",
       "Bash(npm *)",
