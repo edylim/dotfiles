@@ -50,6 +50,11 @@ LEDGER_TTL = 30  # kiracode refreshes the ledger every 30 s (StatusFooter.tsx)
 # v2: responses counted once and priced per model version. Bumped so v1 caches,
 # which summed every line of a response, are rebuilt instead of mixed in.
 LEDGER_FORMAT = 2
+# Below this many terminal columns (a phone: the Kira Studio app's terminals are 54-60 wide in
+# portrait) the expanded line has no USAGE box (Ed, 10-13: "we can remove the USAGE from the
+# iphone app"); the limit rows already stack there. kiracode's StatusFooter uses the same
+# breakpoint (NARROW_COLS), which is also its prompt footer's narrow width.
+NARROW_COLS = 80
 
 # ---- kiracode's palette ------------------------------------------------------------
 
@@ -984,7 +989,8 @@ def main():
         j = {}
     maybe_spawn_refresh()
 
-    cols = int(os.environ.get("COLUMNS") or 120) - 4  # Claude Code pads the row 2 + 2
+    term_cols = int(os.environ.get("COLUMNS") or 120)
+    cols = term_cols - 4  # Claude Code pads the row 2 + 2
     cwd = get(j, "workspace", "current_dir") or os.getcwd()
     now = time.time()
     usage = load(USAGE) or {}
@@ -1083,8 +1089,8 @@ def main():
                 lines.append(cell_l + DIM + " │ " + R + cell_r)
         lines.append("")
 
-    # blank, then the USAGE ledger
-    ledger = load(LEDGER)
+    # blank, then the USAGE ledger (not on a phone-width terminal: NARROW_COLS)
+    ledger = load(LEDGER) if term_cols >= NARROW_COLS else None
     if ledger and ledger.get("v") == LEDGER_FORMAT:  # an older format waits for the next refresh
         if lines[-1] != "":
             lines.append("")
@@ -1097,12 +1103,18 @@ def emit(lines):
     # \`.flatMap((j)=>j.trim()||[])\`), and a leading reset escape doesn't survive its
     # renderer either. U+2800 (braille blank) is not whitespace, draws as one empty
     # cell, and so keeps both the spacer rows and a row's leading padding.
+    # It is also the tap target (Ed, 10-13: "make the touch target for expanding the
+    # statusline larger"): the studio's tmux binding (kira-studio kira.tmux.conf, like
+    # claude-tmux-ui) toggles on a tap on any row holding ⊞, ⊟ or U+2800, so every row
+    # carries one; a row with neither gets its first space drawn as U+2800 instead.
     out = []
     for line in lines:
         if not line.strip(" "):
             line = BLANK
         elif line.startswith(" "):
             line = BLANK + line[1:]
+        elif BLANK not in line and "⊞" not in line and "⊟" not in line:
+            line = line.replace(" ", BLANK, 1)
         out.append(line)
     sys.stdout.write("\n".join(out) + "\n")
 
