@@ -156,13 +156,79 @@ def claude_env(name):
         return ""
 
 
-def compact_point(window):
-    """Context tokens at which auto-compact fires; the whole window when it is switched off."""
+WINDOW_MIN, WINDOW_MAX = 100_000, 1_000_000  # the bundle accepts autoCompactWindow in this range
+
+
+def canonical_model(model):
+    """The canonical model key: strips a trailing [1m] and a -YYYYMMDD date suffix
+    (Claude Code: "the canonical model name as key also matches its dated, [1m] spellings")."""
+    m = re.sub(r"(\[1m\])+$", "", model.strip(), flags=re.IGNORECASE)
+    if len(m) > 9 and m[-9] == "-" and m[-8:].isdigit():
+        m = m[:-9]
+    return m
+
+
+def _settings_auto_window(v):
+    """An autoCompactWindow value: an int in [100000, 1000000], else "auto" (no setting),
+    else None (junk / out of range: the schema rejects it, so it is no setting at all)."""
+    if v == "auto":
+        return "auto"
+    if isinstance(v, int) and not isinstance(v, bool) and WINDOW_MIN <= v <= WINDOW_MAX:
+        return v
+    return None
+
+
+def settings_auto_window(model, cwd):
+    """The merged autoCompactWindow for `model` across user, project and local settings,
+    the way Claude Code resolves it (the bundle's QVt + iv): within one file the model's
+    modelSettings entry replaces that file's top-level value; across files a later file
+    with a top-level value replaces the default and resets modelSettings to only its own,
+    while a later file without one merges its modelSettings over the earlier ones.
+    Returns an int, "auto" (no setting), or None (nothing configured). Never raises."""
+    key = canonical_model(model) if isinstance(model, str) and model else None
+    default, by_model = None, {}
+    home = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
+    files = [os.path.join(home, "settings.json")]
+    if isinstance(cwd, str) and cwd:
+        files += [os.path.join(cwd, ".claude", n) for n in ("settings.json", "settings.local.json")]
+    for path in files:
+        try:
+            with open(path) as fh:
+                s = json.load(fh)
+        except (OSError, ValueError):
+            continue  # missing or malformed: Claude Code skips the file
+        if not isinstance(s, dict):
+            continue
+        top = _settings_auto_window(s.get("autoCompactWindow"))
+        r = {}
+        ms = s.get("modelSettings")
+        if isinstance(ms, dict):
+            for k, h in ms.items():
+                v = _settings_auto_window(h.get("autoCompactWindow") if isinstance(h, dict) else None)
+                if isinstance(k, str) and k and v is not None:
+                    r[canonical_model(k)] = v
+        if top is not None:
+            default, by_model = top, r  # a later top level replaces the default and resets byModel
+        else:
+            by_model.update(r)
+    return by_model.get(key, default) if key else default
+
+
+def compact_point(window, model=None, cwd=None):
+    """Context tokens at which auto-compact fires; the whole window when it is switched off.
+    The window is min(the model's window, the configured auto-compact window): Claude Code's
+    iv() takes the env cap first, else the merged autoCompactWindow setting for the session's
+    model (/autocompact saves there), else the model default; "auto", junk and out-of-range
+    values are no setting, and the env and no-settings paths behave exactly as before."""
     if any(claude_env(v).lower() in ("1", "true", "yes", "on") for v in ("DISABLE_AUTO_COMPACT", "DISABLE_COMPACT")):
         return window
     cap = claude_env("CLAUDE_CODE_AUTO_COMPACT_WINDOW")
     if cap.isdigit() and int(cap) > 0:
-        window = min(window, int(cap))
+        window = min(window, int(cap))  # the env cap takes precedence; settings never consulted
+    else:
+        cfg = settings_auto_window(model, cwd)
+        if isinstance(cfg, int):
+            window = min(window, cfg)
     effective = window - SUMMARY_RESERVE
     point = effective - COMPACT_BUFFER
     try:
@@ -187,7 +253,7 @@ def ctx_toward_compact(j):
         used = (get(j, "context_window", "used_percentage") or 0) / 100 * window
     if not window:
         return 0.0, 0, 0, 0
-    point = compact_point(window)
+    point = compact_point(window, get(j, "model", "id"), get(j, "workspace", "current_dir"))
     if not used:
         return 0.0, 0, point, window
     return min(1.0, used / point), int(used), point, window

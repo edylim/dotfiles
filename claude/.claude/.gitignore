@@ -9,3 +9,4 @@
 !/settings.json
 !/hooks/
 !/statusline.py
+!/statusline.test.py
