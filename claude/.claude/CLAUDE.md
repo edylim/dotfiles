@@ -83,3 +83,4 @@ evidence, and anything the user must be told honestly.
 
 - Review before destructive operations
 - NEVER use `sleep` in foreground Bash — use `run_in_background`
+- **Kill by exact PID only, and only processes you started yourself.** Never `pkill -f`, `killall`, or any pattern-based kill — the pattern matches ANY process whose argv contains it, including other workers' sessions (10-17 04:34Z: a helper's `pkill -f "[b]un test"` swept another Claude worker in tmux cw-217b and Ed's own test runs). Record the PIDs you start (`echo $! > file`); if you need to stop a process you did not start, ask first. This applies to Kira and every helper thread she spawns.
