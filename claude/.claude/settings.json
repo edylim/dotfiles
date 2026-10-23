@@ -324,6 +324,7 @@
   "ultracode": true,
   "promptSuggestionEnabled": false,
   "tui": "default",
+  "timeZone": "America/Los_Angeles",
   "autoMemoryDirectory": "~/.ai-memory",
   "skipWorkflowUsageWarning": true,
   "switchModelsOnFlag": false,
